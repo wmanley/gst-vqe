@@ -197,7 +197,7 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     goto error;
   }
 
-  err = vqec_ifclient_tuner_recvmsg(element->tuner, buflist, 1, &bytes_read, 1000000);
+  vqec_error_t err = vqec_ifclient_tuner_recvmsg(vqesrc->tuner, buflist, 1, &bytes_read, 1000000);
   if (err) {
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), GST_RESOURCE_ERROR,
                       GST_RESOURCE_ERROR_READ, (NULL),
@@ -302,7 +302,6 @@ vqe_worker(void* unused)
 {
   /* Guaranteed to block until we call vqec_ifclient_stop */
   vqec_ifclient_start();
-  return NULL;
 }
 
 static gboolean
@@ -312,6 +311,7 @@ gst_vqesrc_tune (GstVQESrc * src, gchar* uri)
   vqec_sdp_handle_t sdp = NULL;
   /* bind params probably correspond to gstreamer properties?: */
   vqec_bind_params_t *bp = NULL;
+  vqec_error_t err = 0;
 
   bp = vqec_ifclient_bind_params_create();
   if (!bp) {
@@ -359,27 +359,27 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   }
 
   /* TODO: Create vqetuner elements rather than vqesrc or vqebin */
-  err = vqec_ifclient_tuner_create(&tuner, "mytuner");
+  err = vqec_ifclient_tuner_create(&src->tuner, "mytuner");
   if (err) {
     fprintf(stderr, "Failed to create tuner: %s\n", vqec_err2str(err));
     goto err_inited;
   }
   gst_vqesrc_tune(src, src->uri);
-  src.vqe_task = gst_task_new(vqe_worker, NULL, NULL);
-  if (src.vqe_task) {
+  src->vqe_task = gst_task_new(vqe_worker, NULL, NULL);
+  if (src->vqe_task) {
     GST_ELEMENT_ERROR(GST_ELEMENT(src), RESOURCE, FAILED, (NULL),
                       ("Creating VQE task failed"));
-    goto error;
+    goto err_tuner;
   }
   return TRUE;
 
-task_error:
+// task_error:
   vqec_ifclient_stop();
-  gst_task_join(src.vqe_task);
-  g_object_unref(G_OBJECT(src.vqe_task));
-  src.vqe_task = NULL;
+  gst_task_join(src->vqe_task);
+  g_object_unref(G_OBJECT(src->vqe_task));
+  src->vqe_task = NULL;
 err_tuner:
-  vqec_ifclient_tuner_destroy(tuner);
+  vqec_ifclient_tuner_destroy(src->tuner);
 err_inited:
   vqec_ifclient_deinit();
 err:
@@ -407,11 +407,11 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
   src = GST_VQESRC (bsrc);
 
   vqec_ifclient_stop();
-  gst_task_join(src.vqe_task);
-  g_object_unref(G_OBJECT(src.vqe_task));
-  src.vqe_task = NULL;
+  gst_task_join(src->vqe_task);
+  g_object_unref(G_OBJECT(src->vqe_task));
+  src->vqe_task = NULL;
 
-  vqec_ifclient_tuner_destroy(tuner);
+  vqec_ifclient_tuner_destroy(src->tuner);
   vqec_ifclient_deinit();
   return TRUE;
 }
