@@ -191,16 +191,16 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   buflist[0].buf_ptr = g_malloc(buffer_size);
   buflist[0].buf_len = buffer_size;
   if (!buflist[0].buf_ptr) {
-    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), GST_RESOURCE_ERROR,
-                      GST_RESOURCE_ERROR_FAILED, (NULL),
+    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
+                      FAILED, (NULL),
                       ("g_malloc(%i) failed", buffer_size));
     goto error;
   }
 
   vqec_error_t err = vqec_ifclient_tuner_recvmsg(vqesrc->tuner, buflist, 1, &bytes_read, 1000000);
   if (err) {
-    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), GST_RESOURCE_ERROR,
-                      GST_RESOURCE_ERROR_READ, (NULL),
+    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
+                      READ, (NULL),
                       ("Error receiving data from VQE: %s", vqec_err2str(err)));
     goto buf_error;
   }
@@ -208,8 +208,8 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   outbuf = gst_buffer_new_wrapped_full(0, buflist[0].buf_ptr, buffer_size, 0,
                                        bytes_read, buflist[0].buf_ptr, g_free);
   if (!outbuf) {
-    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), GST_RESOURCE_ERROR,
-                      GST_RESOURCE_ERROR_FAILED, (NULL),
+    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
+                      FAILED, (NULL),
                       ("gst_buffer_new_wrapped_full failed!"));
     goto buf_error;
   }
