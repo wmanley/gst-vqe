@@ -3,6 +3,7 @@ AC_PREREQ([2.53])
 
 dnl TODO: fill in your package name and package version here
 AC_INIT([gst-vqe],[0.11.0])
+AC_CONFIG_AUX_DIR([build-aux])
 
 dnl required versions of gstreamer and plugins-base
 GST_REQUIRED=0.11.0

@@ -14,4 +14,9 @@ stamp-*
 Makefile
 .deps/
 *~
+build-*
+
+.cproject
+.project
+.settings
 
