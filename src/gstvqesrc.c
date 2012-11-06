@@ -29,6 +29,9 @@
 #include <sys/socket.h>
 #endif
 
+#include <string.h>
+#include <stdio.h>
+
 GST_DEBUG_CATEGORY_STATIC (vqesrc_debug);
 #define GST_CAT_DEFAULT (vqesrc_debug)
 
