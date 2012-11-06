@@ -60,6 +60,9 @@ PKG_CHECK_MODULES(GST, [
   ])
 ])
 
+dnl Check for VQE-C
+PKG_CHECK_MODULES(VQEC, vqe-c >= 1.0)
+
 dnl check if compiler understands -Wall (if yes, add -Wall to GST_CFLAGS)
 AC_MSG_CHECKING([to see if compiler understands -Wall])
 save_CFLAGS="$CFLAGS"
