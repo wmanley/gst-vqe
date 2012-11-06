@@ -51,6 +51,7 @@ enum
 
   PROP_URI,
   PROP_CAPS,
+  PROP_CFG,
 
   PROP_LAST
 };
@@ -103,6 +104,12 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
       g_param_spec_string ("uri", "URI",
           "URI in the form of rtp://multicast_group:port", VQE_DEFAULT_URI,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_CFG,
+      g_param_spec_string ("cfg", "Server Configuration file",
+          "cfg in form of file path /tmp/sample-vqec.config", VQE_DEFAULT_URI,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT_ONLY));
+
   g_object_class_install_property (gobject_class, PROP_CAPS,
       g_param_spec_boxed ("caps", "Caps",
           "The caps of the source pad", GST_TYPE_CAPS,
@@ -242,6 +249,16 @@ gst_vqesrc_set_uri (GstVQESrc * src, const gchar * uri, GError ** error)
   return TRUE;
 }
 
+static gboolean
+gst_vqesrc_set_cfg (GstVQESrc * src, const gchar * cfg, GError ** error)
+{
+  /* Won't have any affect until the source is stopped and restarted. */
+  /* TODO: A bit of preliminary validation of the URI */
+  g_free(src->cfg);
+  src->cfg = g_strdup(cfg);
+  return TRUE;
+}
+
 static void
 gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
     GParamSpec * pspec)
@@ -251,6 +268,9 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
   switch (prop_id) {
     case PROP_URI:
       gst_vqesrc_set_uri (vqesrc, g_value_get_string (value), NULL);
+      break;
+    case PROP_CFG:
+      gst_vqesrc_set_cfg (vqesrc, g_value_get_string (value), NULL);
       break;
     case PROP_CAPS:
     {
@@ -287,6 +307,9 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   switch (prop_id) {
     case PROP_URI:
       g_value_set_string (value, vqesrc->uri);
+      break;
+    case PROP_CFG:
+      g_value_set_string (value, vqesrc->cfg);
       break;
     case PROP_CAPS:
       gst_value_set_caps (value, vqesrc->caps);
@@ -352,7 +375,7 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
 
   src = GST_VQESRC (bsrc);
 
-  err = vqec_ifclient_init(cfg);
+  err = vqec_ifclient_init(src->cfg);
   if (err) {
     fprintf(stderr, "Failed to initialise VQE-C: %s\n", vqec_err2str(err));
     goto err;

@@ -37,6 +37,7 @@ struct _GstVQESrc {
   /* properties */
   GstCaps   *caps;
   gchar     *uri;
+  gchar     *cfg;
 
   /* VQE resources */
   
