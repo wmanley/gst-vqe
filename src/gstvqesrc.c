@@ -68,7 +68,7 @@ static gboolean gst_vqesrc_stop (GstBaseSrc * bsrc);
 
 static gboolean gst_vqesrc_unlock (GstBaseSrc * bsrc);
 
-static gboolean gst_vqesrc_unlock_stop (GstBaseSrc * bsrc);
+static gboolean gst_vqesrc_unlock_stop (GstBaseSrc * bsrc){ return FALSE; }
 
 static void gst_vqesrc_finalize (GObject * object);
 
