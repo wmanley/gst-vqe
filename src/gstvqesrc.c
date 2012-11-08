@@ -41,7 +41,8 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS_ANY);
 
 #define VQE_DEFAULT_URI                 "rtp://224.1.1.1:60000"
-#define VQE_DEFAULT_CAPS                NULL /* <- Should probably make this video/mpegts */
+#define VQE_DEFAULT_CFG                 ""
+#define VQE_DEFAULT_CAPS                "video/mpegts"
 
 static const size_t buffer_size = 4096; // 4KB
 
@@ -108,7 +109,7 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_CFG,
       g_param_spec_string ("cfg", "Server Configuration file",
           "cfg in form of file path /tmp/sample-vqec.config", VQE_DEFAULT_URI,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT_ONLY));
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_CAPS,
       g_param_spec_boxed ("caps", "Caps",
@@ -136,6 +137,7 @@ static void
 gst_vqesrc_init (GstVQESrc * vqesrc)
 {
   vqesrc->uri = g_strdup (VQE_DEFAULT_URI);
+  vqesrc->cfg = g_strdup (VQE_DEFAULT_CFG);
 
   /* configure basesrc to be a live source */
   gst_base_src_set_live (GST_BASE_SRC (vqesrc), TRUE);
@@ -388,19 +390,53 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
     goto err_inited;
   }
   gst_vqesrc_tune(src, src->uri);
-  src->vqe_task = gst_task_new(vqe_worker, NULL, NULL);
-  if (src->vqe_task) {
+
+
+  // appears that we can only have one task per pad in push source, so the vqe event loop preempt the create thread
+  /*
+  gboolean taskStart = gst_pad_start_task(bsrc->srcpad, (GstTaskFunction) vqe_worker, bsrc->srcpad, NULL);
+  if (! taskStart) {
     GST_ELEMENT_ERROR(GST_ELEMENT(src), RESOURCE, FAILED, (NULL),
                       ("Creating VQE task failed"));
     goto err_tuner;
   }
+  */
+
+
+  /*
+  GST_OBJECT_LOCK (src);
+  src->vqe_task = gst_task_new((GstTaskFunction) vqe_worker, NULL, NULL);
+  gst_task_start(src->vqe_task);
+
+  GST_OBJECT_UNLOCK (src);
+
+  if (! src->vqe_task) {
+	  GST_ELEMENT_ERROR(GST_ELEMENT(src), RESOURCE, FAILED, (NULL),
+			  ("Creating VQE task failed"));
+	  goto err_tuner;
+  }
+
+
+*/
+
+
+	pthread_t thr;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	if (pthread_create(&thr, &attr, vqe_worker, NULL )) {
+		GST_ELEMENT_ERROR(GST_ELEMENT(src), RESOURCE, FAILED, (NULL),
+				("Creating VQE task failed"));
+		goto err_tuner;
+	}
+
+	pthread_attr_destroy(&attr);
   return TRUE;
 
-// task_error:
+/* error handling
   vqec_ifclient_stop();
   gst_task_join(src->vqe_task);
   g_object_unref(G_OBJECT(src->vqe_task));
-  src->vqe_task = NULL;
+  src->vqe_task = NULL;*/
 err_tuner:
   vqec_ifclient_tuner_destroy(src->tuner);
 err_inited:
