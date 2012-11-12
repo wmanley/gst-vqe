@@ -165,6 +165,8 @@ gst_vqesrc_finalize (GObject * object)
   g_free (vqesrc->uri);
   vqesrc->uri = NULL;
 
+  g_free (vqesrc->cfg);
+  vqesrc->cfg = NULL;
 
   g_rec_mutex_clear ( &vqesrc->vqe_task_lock );
 
