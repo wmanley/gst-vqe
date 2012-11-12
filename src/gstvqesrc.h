@@ -43,6 +43,8 @@ struct _GstVQESrc {
   
   vqec_tunerid_t tuner;
   GstTask *vqe_task;
+  GRecMutex vqe_task_lock;
+
 };
 
 struct _GstVQESrcClass {

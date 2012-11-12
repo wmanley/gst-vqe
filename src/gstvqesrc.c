@@ -392,44 +392,25 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   gst_vqesrc_tune(src, src->uri);
 
 
-  // appears that we can only have one task per pad in push source, so the vqe event loop preempt the create thread
-  /*
-  gboolean taskStart = gst_pad_start_task(bsrc->srcpad, (GstTaskFunction) vqe_worker, bsrc->srcpad, NULL);
-  if (! taskStart) {
-    GST_ELEMENT_ERROR(GST_ELEMENT(src), RESOURCE, FAILED, (NULL),
-                      ("Creating VQE task failed"));
-    goto err_tuner;
-  }
-  */
-
-
-  /*
   GST_OBJECT_LOCK (src);
-  src->vqe_task = gst_task_new((GstTaskFunction) vqe_worker, NULL, NULL);
-  gst_task_start(src->vqe_task);
 
-  GST_OBJECT_UNLOCK (src);
+  src->vqe_task = gst_task_new ((GstTaskFunction) vqe_worker, src, NULL);
+  if (src->vqe_task == NULL) {
+	  GST_OBJECT_UNLOCK (src);
+	  goto task_error;
+  }
+  else
+  {
+	  g_rec_mutex_init ( &src->vqe_task_lock);
+	  gst_task_set_lock (src->vqe_task, &src->vqe_task_lock );
 
-  if (! src->vqe_task) {
-	  GST_ELEMENT_ERROR(GST_ELEMENT(src), RESOURCE, FAILED, (NULL),
-			  ("Creating VQE task failed"));
-	  goto err_tuner;
+	  gboolean started = gst_task_start (src->vqe_task);
+	  GST_OBJECT_UNLOCK (src);
+
+	  if( !started )
+		  goto task_error;
   }
 
-
-*/
-
-
-	pthread_t thr;
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	if (pthread_create(&thr, &attr, vqe_worker, NULL )) {
-		GST_ELEMENT_ERROR(GST_ELEMENT(src), RESOURCE, FAILED, (NULL),
-				("Creating VQE task failed"));
-		goto err_tuner;
-	}
-
-	pthread_attr_destroy(&attr);
   return TRUE;
 
 /* error handling
@@ -437,7 +418,9 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   gst_task_join(src->vqe_task);
   g_object_unref(G_OBJECT(src->vqe_task));
   src->vqe_task = NULL;*/
-err_tuner:
+
+task_error:
+//err_tuner:
   vqec_ifclient_tuner_destroy(src->tuner);
 err_inited:
   vqec_ifclient_deinit();
