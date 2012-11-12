@@ -139,6 +139,9 @@ gst_vqesrc_init (GstVQESrc * vqesrc)
   vqesrc->uri = g_strdup (VQE_DEFAULT_URI);
   vqesrc->cfg = g_strdup (VQE_DEFAULT_CFG);
 
+  // mutex used for control VQE worker thread
+  g_rec_mutex_init ( &vqesrc->vqe_task_lock);
+
   /* configure basesrc to be a live source */
   gst_base_src_set_live (GST_BASE_SRC (vqesrc), TRUE);
   /* make basesrc output a segment in time */
@@ -161,6 +164,9 @@ gst_vqesrc_finalize (GObject * object)
 
   g_free (vqesrc->uri);
   vqesrc->uri = NULL;
+
+
+  g_rec_mutex_clear ( &vqesrc->vqe_task_lock );
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -401,7 +407,6 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   }
   else
   {
-	  g_rec_mutex_init ( &src->vqe_task_lock);
 	  gst_task_set_lock (src->vqe_task, &src->vqe_task_lock );
 
 	  gboolean started = gst_task_start (src->vqe_task);
@@ -444,14 +449,24 @@ gst_vqesrc_unlock (GstBaseSrc * bsrc)
 static gboolean
 gst_vqesrc_stop (GstBaseSrc * bsrc)
 {
-  GstVQESrc *src;
-
-  src = GST_VQESRC (bsrc);
+  GstVQESrc *src = GST_VQESRC (bsrc);
 
   vqec_ifclient_stop();
-  gst_task_join(src->vqe_task);
-  g_object_unref(G_OBJECT(src->vqe_task));
-  src->vqe_task = NULL;
+
+  // shutdown vqe worker thread
+  GstTask *vqeTask;
+  GST_OBJECT_LOCK (src);
+  if ( NULL != ( vqeTask = src->vqe_task ) )
+  {
+	  src->vqe_task = NULL;
+	  GST_OBJECT_UNLOCK (src);
+	  gst_task_stop (vqeTask);
+	  gst_task_join(vqeTask);
+	  g_object_unref(G_OBJECT(vqeTask));
+  }
+  else
+	  GST_OBJECT_UNLOCK (src);
+
 
   vqec_ifclient_tuner_destroy(src->tuner);
   vqec_ifclient_deinit();
