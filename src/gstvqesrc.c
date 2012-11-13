@@ -453,8 +453,6 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
 {
   GstVQESrc *src = GST_VQESRC (bsrc);
 
-  vqec_ifclient_stop();
-
   // shutdown vqe worker thread
   GstTask *vqeTask;
   GST_OBJECT_LOCK (src);
@@ -462,7 +460,13 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
   {
 	  src->vqe_task = NULL;
 	  GST_OBJECT_UNLOCK (src);
+
+	  // gst_task_stop first and then vqec_ifclient_stop
+	  // to avoid race condition of vqec_ifclient_start being
+	  // called again
 	  gst_task_stop (vqeTask);
+	  vqec_ifclient_stop();
+
 	  gst_task_join(vqeTask);
 	  g_object_unref(G_OBJECT(vqeTask));
   }
