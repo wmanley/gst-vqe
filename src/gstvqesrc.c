@@ -331,10 +331,18 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
 }
 
 static void
-vqe_worker(void* unused)
+vqe_worker(void* pVqeSrc)
 {
   /* Guaranteed to block until we call vqec_ifclient_stop */
   vqec_ifclient_start();
+
+  // gst_task's repeated call worker function until stop is called
+  // we want single shot behaviour.  Stop here so can use vqec_ifclient_stop
+  // throughout code base without worrying about race conditions
+  GstVQESrc* src = (GstVQESrc*) (pVqeSrc);
+  GST_OBJECT_LOCK (src);
+  gst_task_stop (src->vqe_task);
+  GST_OBJECT_UNLOCK (src);
 }
 
 static gboolean
@@ -454,21 +462,18 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
   GstVQESrc *src = GST_VQESRC (bsrc);
 
   // shutdown vqe worker thread
-  GstTask *vqeTask;
   GST_OBJECT_LOCK (src);
-  if ( NULL != ( vqeTask = src->vqe_task ) )
+  if ( NULL != src->vqe_task )
   {
-	  src->vqe_task = NULL;
 	  GST_OBJECT_UNLOCK (src);
 
-	  // gst_task_stop first and then vqec_ifclient_stop
-	  // to avoid race condition of vqec_ifclient_start being
-	  // called again
-	  gst_task_stop (vqeTask);
+	  // only call vqec_ifclient_stop, gst_task_stop is called behind the scenes
+	  // src->vqe_task is needed by worker thread
 	  vqec_ifclient_stop();
+	  gst_task_join(src->vqe_task);
+	  g_object_unref(G_OBJECT(src->vqe_task));
+	  src->vqe_task = NULL;
 
-	  gst_task_join(vqeTask);
-	  g_object_unref(G_OBJECT(vqeTask));
   }
   else
 	  GST_OBJECT_UNLOCK (src);
