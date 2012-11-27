@@ -10,11 +10,14 @@
 #endif
 
 #include "gstvqesrc.h"
+#include "gstvqesdpdemux.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
   if (!gst_element_register (plugin, "vqesrc", GST_RANK_NONE, GST_TYPE_VQESRC))
+    return FALSE;
+  if (!gst_element_register (plugin, "vqesdpdemux", GST_RANK_PRIMARY, GST_TYPE_VQE_SDP_DEMUX))
     return FALSE;
 
   return TRUE;
