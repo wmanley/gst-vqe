@@ -14,7 +14,7 @@
  * <refsect2>
  * <title>Examples</title>
  * |[
- * gst-launch-1.0 -v vqesrc uri=rtp://224.5.2.1:30000 ! decodebin2 ! xvimagesink
+ * gst-launch-1.0 -v vqesrc sdp="xyz" ! decodebin2 ! xvimagesink
  * </refsect2>
  */
 #ifdef HAVE_CONFIG_H
@@ -40,7 +40,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS("video/mpegts"));
 
-#define VQE_DEFAULT_URI                 "rtp://224.1.1.1:60000"
+#define VQE_DEFAULT_SDP                 ""
 #define VQE_DEFAULT_CFG                 ""
 
 static const size_t buffer_size = 4096; // 4KB
@@ -49,13 +49,11 @@ enum
 {
   PROP_0,
 
-  PROP_URI,
+  PROP_SDP,
   PROP_CFG,
 
   PROP_LAST
 };
-
-static void gst_vqesrc_uri_handler_init (gpointer g_iface, gpointer iface_data);
 
 static GstFlowReturn gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf);
 
@@ -75,8 +73,7 @@ static void gst_vqesrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
 #define gst_vqesrc_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstVQESrc, gst_vqesrc, GST_TYPE_PUSH_SRC,
-    G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_vqesrc_uri_handler_init));
+G_DEFINE_TYPE (GstVQESrc, gst_vqesrc, GST_TYPE_PUSH_SRC);
 
 static void
 gst_vqesrc_class_init (GstVQESrcClass * klass)
@@ -97,14 +94,14 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
   gobject_class->get_property = gst_vqesrc_get_property;
   gobject_class->finalize = gst_vqesrc_finalize;
 
-  g_object_class_install_property (gobject_class, PROP_URI,
-      g_param_spec_string ("uri", "URI",
-          "URI in the form of rtp://multicast_group:port", VQE_DEFAULT_URI,
+  g_object_class_install_property (gobject_class, PROP_SDP,
+      g_param_spec_string ("sdp", "SDP",
+          "Stream description in SDP format", VQE_DEFAULT_SDP,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_CFG,
       g_param_spec_string ("cfg", "Server Configuration file",
-          "cfg in form of file path /tmp/sample-vqec.config", VQE_DEFAULT_URI,
+          "cfg in form of file path /tmp/sample-vqec.config", VQE_DEFAULT_CFG,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
@@ -126,7 +123,7 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
 static void
 gst_vqesrc_init (GstVQESrc * vqesrc)
 {
-  vqesrc->uri = g_strdup (VQE_DEFAULT_URI);
+  vqesrc->sdp = g_strdup (VQE_DEFAULT_SDP);
   vqesrc->cfg = g_strdup (VQE_DEFAULT_CFG);
 
   // mutex used for control VQE worker thread
@@ -148,8 +145,8 @@ gst_vqesrc_finalize (GObject * object)
 
   vqesrc = GST_VQESRC (object);
 
-  g_free (vqesrc->uri);
-  vqesrc->uri = NULL;
+  g_free (vqesrc->sdp);
+  vqesrc->sdp = NULL;
 
   g_free (vqesrc->cfg);
   vqesrc->cfg = NULL;
@@ -221,12 +218,12 @@ error:
 }
 
 static gboolean
-gst_vqesrc_set_uri (GstVQESrc * src, const gchar * uri, GError ** error)
+gst_vqesrc_set_sdp (GstVQESrc * src, const gchar * sdp, GError ** error)
 {
   /* Won't have any affect until the source is stopped and restarted. */
-  /* TODO: A bit of preliminary validation of the URI */
-  g_free(src->uri);
-  src->uri = g_strdup(uri);
+  /* TODO: A bit of preliminary validation of the SDP contents */
+  g_free(src->sdp);
+  src->sdp = g_strdup(sdp);
   return TRUE;
 }
 
@@ -234,7 +231,6 @@ static gboolean
 gst_vqesrc_set_cfg (GstVQESrc * src, const gchar * cfg, GError ** error)
 {
   /* Won't have any affect until the source is stopped and restarted. */
-  /* TODO: A bit of preliminary validation of the URI */
   g_free(src->cfg);
   src->cfg = g_strdup(cfg);
   return TRUE;
@@ -247,8 +243,8 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
   GstVQESrc *vqesrc = GST_VQESRC (object);
 
   switch (prop_id) {
-    case PROP_URI:
-      gst_vqesrc_set_uri (vqesrc, g_value_get_string (value), NULL);
+    case PROP_SDP:
+      gst_vqesrc_set_sdp (vqesrc, g_value_get_string (value), NULL);
       break;
     case PROP_CFG:
       gst_vqesrc_set_cfg (vqesrc, g_value_get_string (value), NULL);
@@ -265,8 +261,8 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   GstVQESrc *vqesrc = GST_VQESRC (object);
 
   switch (prop_id) {
-    case PROP_URI:
-      g_value_set_string (value, vqesrc->uri);
+    case PROP_SDP:
+      g_value_set_string (value, vqesrc->sdp);
       break;
     case PROP_CFG:
       g_value_set_string (value, vqesrc->cfg);
@@ -293,13 +289,14 @@ vqe_worker(void* pVqeSrc)
 }
 
 static gboolean
-gst_vqesrc_tune (GstVQESrc * src, gchar* uri)
+gst_vqesrc_tune (GstVQESrc * src, gchar* sdp)
 {
   gboolean success = FALSE;
-  vqec_sdp_handle_t sdp = NULL;
+  vqec_chan_cfg_t cfg;
   /* bind params probably correspond to gstreamer properties?: */
   vqec_bind_params_t *bp = NULL;
   vqec_error_t err = 0;
+  uint8_t res;
 
   bp = vqec_ifclient_bind_params_create();
   if (!bp) {
@@ -307,14 +304,14 @@ gst_vqesrc_tune (GstVQESrc * src, gchar* uri)
                       ("Failed to create bind params"));
     goto out;
   }
-  sdp = vqec_ifclient_alloc_sdp_handle_from_url(uri);
-  if (!sdp) {
+  res = vqec_ifclient_chan_cfg_parse_sdp(&cfg, sdp,
+                                         VQEC_CHAN_TYPE_LINEAR);
+  if (!res) {
     GST_ELEMENT_ERROR(GST_ELEMENT(src), STREAM, FAILED, (NULL),
-                      ("Failed to create SDP handle with uri \"%s\"",
-                      uri));
+                      ("Failed to parse SDP file:\n===BEGIN SDP===\n%s\n===END SDP===", sdp));
     goto out;
   }
-  err = vqec_ifclient_tuner_bind_chan(src->tuner, sdp, bp);
+  err = vqec_ifclient_tuner_bind_chan_cfg(src->tuner, &cfg, bp);
   if (err) {
     GST_ELEMENT_ERROR(GST_ELEMENT(src), STREAM, FAILED, (NULL),
                       ("Failed to bind channel: %s", vqec_err2str(err)));
@@ -324,9 +321,6 @@ gst_vqesrc_tune (GstVQESrc * src, gchar* uri)
 out:
   if (bp) {
     vqec_ifclient_bind_params_destroy(bp);
-  }
-  if (sdp) {
-    vqec_ifclient_free_sdp_handle(sdp);
   }
   return success;
 }
@@ -352,8 +346,7 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
     fprintf(stderr, "Failed to create tuner: %s\n", vqec_err2str(err));
     goto err_inited;
   }
-  gst_vqesrc_tune(src, src->uri);
-
+  gst_vqesrc_tune(src, src->sdp);
 
   GST_OBJECT_LOCK (src);
 
@@ -431,44 +424,3 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
   return TRUE;
 }
 
-/*** GSTURIHANDLER INTERFACE *************************************************/
-
-static GstURIType
-gst_vqesrc_uri_get_type (GType type)
-{
-  return GST_URI_SRC;
-}
-
-static const gchar *const *
-gst_vqesrc_uri_get_protocols (GType type)
-{
-  static const gchar *protocols[] = { "rtp", NULL };
-
-  return protocols;
-}
-
-static gchar *
-gst_vqesrc_uri_get_uri (GstURIHandler * handler)
-{
-  GstVQESrc *src = GST_VQESRC (handler);
-
-  return g_strdup (src->uri);
-}
-
-static gboolean
-gst_vqesrc_uri_set_uri (GstURIHandler * handler, const gchar * uri,
-    GError ** error)
-{
-  return gst_vqesrc_set_uri (GST_VQESRC (handler), uri, error);
-}
-
-static void
-gst_vqesrc_uri_handler_init (gpointer g_iface, gpointer iface_data)
-{
-  GstURIHandlerInterface *iface = (GstURIHandlerInterface *) g_iface;
-
-  iface->get_type = gst_vqesrc_uri_get_type;
-  iface->get_protocols = gst_vqesrc_uri_get_protocols;
-  iface->get_uri = gst_vqesrc_uri_get_uri;
-  iface->set_uri = gst_vqesrc_uri_set_uri;
-}

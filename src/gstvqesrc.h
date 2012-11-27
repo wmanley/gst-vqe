@@ -35,7 +35,7 @@ struct _GstVQESrc {
   GstPushSrc parent;
 
   /* properties */
-  gchar     *uri;
+  gchar     *sdp;
   gchar     *cfg;
 
   /* VQE resources */
