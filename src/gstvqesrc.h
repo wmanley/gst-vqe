@@ -35,7 +35,6 @@ struct _GstVQESrc {
   GstPushSrc parent;
 
   /* properties */
-  GstCaps   *caps;
   gchar     *uri;
   gchar     *cfg;
 

@@ -38,11 +38,10 @@ GST_DEBUG_CATEGORY_STATIC (vqesrc_debug);
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS_ANY);
+    GST_STATIC_CAPS("video/mpegts"));
 
 #define VQE_DEFAULT_URI                 "rtp://224.1.1.1:60000"
 #define VQE_DEFAULT_CFG                 ""
-#define VQE_DEFAULT_CAPS                "video/mpegts"
 
 static const size_t buffer_size = 4096; // 4KB
 
@@ -51,15 +50,12 @@ enum
   PROP_0,
 
   PROP_URI,
-  PROP_CAPS,
   PROP_CFG,
 
   PROP_LAST
 };
 
 static void gst_vqesrc_uri_handler_init (gpointer g_iface, gpointer iface_data);
-
-static GstCaps *gst_vqesrc_getcaps (GstBaseSrc * src, GstCaps * filter);
 
 static GstFlowReturn gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf);
 
@@ -111,11 +107,6 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
           "cfg in form of file path /tmp/sample-vqec.config", VQE_DEFAULT_URI,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_CAPS,
-      g_param_spec_boxed ("caps", "Caps",
-          "The caps of the source pad", GST_TYPE_CAPS,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
 
@@ -128,7 +119,6 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
   gstbasesrc_class->stop = gst_vqesrc_stop;
   gstbasesrc_class->unlock = gst_vqesrc_unlock;
   gstbasesrc_class->unlock_stop = gst_vqesrc_unlock_stop;
-  gstbasesrc_class->get_caps = gst_vqesrc_getcaps;
 
   gstpushsrc_class->create = gst_vqesrc_create;
 }
@@ -158,10 +148,6 @@ gst_vqesrc_finalize (GObject * object)
 
   vqesrc = GST_VQESRC (object);
 
-  if (vqesrc->caps)
-    gst_caps_unref (vqesrc->caps);
-  vqesrc->caps = NULL;
-
   g_free (vqesrc->uri);
   vqesrc->uri = NULL;
 
@@ -171,21 +157,6 @@ gst_vqesrc_finalize (GObject * object)
   g_rec_mutex_clear ( &vqesrc->vqe_task_lock );
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
-}
-
-static GstCaps *
-gst_vqesrc_getcaps (GstBaseSrc * src, GstCaps * filter)
-{
-  GstVQESrc *vqesrc;
-
-  vqesrc = GST_VQESRC (src);
-
-  if (vqesrc->caps) {
-    return (filter) ? gst_caps_intersect_full (filter, vqesrc->caps,
-        GST_CAPS_INTERSECT_FIRST) : gst_caps_ref (vqesrc->caps);
-  } else {
-    return (filter) ? gst_caps_ref (filter) : gst_caps_new_any ();
-  }
 }
 
 static GstFlowReturn
@@ -282,27 +253,6 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
     case PROP_CFG:
       gst_vqesrc_set_cfg (vqesrc, g_value_get_string (value), NULL);
       break;
-    case PROP_CAPS:
-    {
-      const GstCaps *new_caps_val = gst_value_get_caps (value);
-
-      GstCaps *new_caps;
-
-      GstCaps *old_caps;
-
-      if (new_caps_val == NULL) {
-        new_caps = gst_caps_new_any ();
-      } else {
-        new_caps = gst_caps_copy (new_caps_val);
-      }
-
-      old_caps = vqesrc->caps;
-      vqesrc->caps = new_caps;
-      if (old_caps)
-        gst_caps_unref (old_caps);
-      gst_pad_set_caps (GST_BASE_SRC (vqesrc)->srcpad, new_caps);
-      break;
-    }
     default:
       break;
   }
@@ -320,9 +270,6 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_CFG:
       g_value_set_string (value, vqesrc->cfg);
-      break;
-    case PROP_CAPS:
-      gst_value_set_caps (value, vqesrc->caps);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
