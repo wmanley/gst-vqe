@@ -22,7 +22,7 @@ plugin_init (GstPlugin * plugin)
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    udp,
+    vqe,
     "Receive RTP over UDP with retransmission and rapid channel change",
     plugin_init, "0.11", "BSD", "gst-vqe",
     "http://youview.com/")
