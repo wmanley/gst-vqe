@@ -1,5 +1,0 @@
-gst-vqe
-=======
-
-A Gstreamer wrapper around Cisco VQE.  Implements  RFC 3550 (RTP) and RFC 4588
-(RTP Retransmission).
