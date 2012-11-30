@@ -1,6 +1,7 @@
-#!/bin/sh
-# you can either set the environment variables AUTOCONF, AUTOHEADER, AUTOMAKE,
-# ACLOCAL, AUTOPOINT and/or LIBTOOLIZE to the right versions, or leave them
-# unset and get the defaults
+#!/bin/sh -e
 
-exec autoreconf --verbose --force --install
+test -n "$srcdir" || srcdir=`dirname "$0"`
+test -n "$srcdir" || srcdir=.
+autoreconf --force --install --verbose "$srcdir"
+test -n "$NOCONFIGURE" || "$srcdir/configure" "$@"
+

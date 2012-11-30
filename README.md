@@ -52,7 +52,6 @@ Building
 gst-vqe is a standard autotools package.  To build execute:
 
     ./autogen.sh
-    ./configure
     make
     make install
 
