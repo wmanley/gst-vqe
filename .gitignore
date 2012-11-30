@@ -20,3 +20,6 @@ build-*
 .project
 .settings
 
+.libs
+*.la
+*.lo
