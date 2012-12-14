@@ -45,8 +45,11 @@
 #include <sys/socket.h>
 #endif
 
+#include <vqec_ifclient_defs.h>
+
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 
 GST_DEBUG_CATEGORY_STATIC (vqesrc_debug);
 #define GST_CAT_DEFAULT (vqesrc_debug)
@@ -68,6 +71,40 @@ enum
   PROP_SDP,
   PROP_CFG,
 
+  PROP_VQEC_PRIMARY_UDP_INPUTS,
+  PROP_VQEC_PRIMARY_UDP_DROPS,
+  PROP_VQEC_PRIMARY_RTP_INPUTS,
+  PROP_VQEC_PRIMARY_RTP_DROPS,
+  PROP_VQEC_PRIMARY_RTP_DROPS_LATE,
+  PROP_VQEC_PRIMARY_RTCP_INPUTS,
+  PROP_VQEC_PRIMARY_RTCP_OUTPUTS,
+  PROP_VQEC_REPAIR_RTP_INPUTS,
+  PROP_VQEC_REPAIR_RTP_DROPS,
+  PROP_VQEC_REPAIR_RTP_DROPS_LATE,
+  PROP_VQEC_REPAIR_RTCP_INPUTS,
+  PROP_VQEC_FEC_INPUTS,
+  PROP_VQEC_FEC_DROPS,
+  PROP_VQEC_FEC_DROPS_LATE,
+  PROP_VQEC_REPAIR_RTP_STUN_INPUTS,
+  PROP_VQEC_REPAIR_RTP_STUN_OUTPUTS,
+  PROP_VQEC_REPAIR_RTCP_STUN_INPUTS,
+  PROP_VQEC_REPAIR_RTCP_STUN_OUTPUTS,
+  PROP_VQEC_POST_REPAIR_OUTPUTS,
+  PROP_VQEC_TUNER_QUEUE_DROPS,
+  PROP_VQEC_UNDERRUNS,
+  PROP_VQEC_PRE_REPAIR_LOSSES,
+  PROP_VQEC_POST_REPAIR_LOSSES,
+  PROP_VQEC_POST_REPAIR_LOSSES_RCC,
+  PROP_VQEC_REPAIRS_REQUESTED,
+  PROP_VQEC_REPAIRS_POLICED,
+  PROP_VQEC_FEC_RECOVERED_PAKS,
+  // TODO: not implemented yet
+  PROP_VQEC_CHANNEL_CHANGE_REQUESTS,
+  PROP_VQEC_RCC_REQUESTS,
+  PROP_VQEC_CONCURRENT_RCCS_LIMITED,
+  PROP_VQEC_RCC_WITH_LOSS,
+  PROP_VQEC_RCC_ABORTS_TOTAL,
+  
   PROP_LAST
 };
 
@@ -119,6 +156,167 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
       g_param_spec_string ("cfg", "Server Configuration file",
           "cfg in form of file path /tmp/sample-vqec.config", VQE_DEFAULT_CFG,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_UDP_INPUTS,
+      g_param_spec_uint64 ("primary-udp-inputs", "PRIMARY_UDP_INPUTS",
+          "primary udp mpeg pkts received", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_UDP_DROPS,
+      g_param_spec_uint64 ("primary-udp-drops", "PROP_VQEC_PRIMARY_UDP_DROPS",
+          "primary udp mpeg pkts dropped, due to a failure to have a valid MPEG sync byte as the first byte in the pkt payload", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTP_INPUTS,
+      g_param_spec_uint64 ("primary-rtp-inputs", "PROP_VQEC_PRIMARY_RTP_INPUTS",
+          "primary rtp pkts received ", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTP_DROPS,
+      g_param_spec_uint64 ("primary-rtp-drops", "PROP_VQEC_PRIMARY_RTP_DROPS",
+          "primary rtp pkts dropped, due to reasons such as: o RTP parse failure o too early (before join) o too late for playout o drop simulator tool This counter EXCLUDES drops due to duplicate pkts being recvd", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTP_DROPS_LATE,
+      g_param_spec_uint64 ("primary-rtp-drops-late", "PROP_VQEC_PRIMARY_RTP_DROPS_LATE",
+          "primary rtp pkts dropped due to arriving too late (after time needed by output scheduler)", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTCP_INPUTS,
+      g_param_spec_uint64 ("primary-rtcp-inputs", "PROP_VQEC_PRIMARY_RTCP_INPUTS",
+          "primary rtcp pkts received", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTCP_OUTPUTS,
+      g_param_spec_uint64 ("primary-rtcp-outputs", "PROP_VQEC_PRIMARY_RTCP_OUTPUTS",
+          "primary rtcp packets sent", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTP_INPUTS,
+      g_param_spec_uint64 ("repair-rtp-inputs", "PROP_VQEC_REPAIR_RTP_INPUTS",
+          "repair/rcc rtp pkts received", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTP_DROPS,
+      g_param_spec_uint64 ("repair-rtp-drops", "PROP_VQEC_REPAIR_RTP_DROPS",
+          "repair/rcc rtp pkts dropped due to reasons such as:\n"
+          "                         o RTP parse failure\n"
+          "                         o too early (before join)\n"   
+          "                         o too late for playout\n"
+          "                         o repairs preceed first sequence number from RCC APP\n"
+          "                         o drop simulator tool\n"         
+          "                        This counter EXCLUDES drops due to duplicate pkts being received."
+          , 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTP_DROPS_LATE,
+      g_param_spec_uint64 ("repair-rtp-drops-late", "PROP_VQEC_REPAIR_RTP_DROPS_LATE",
+          "repair/rcc rtp pkts dropped due to arriving too late (after time needed by output scheduler)", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTCP_INPUTS,
+      g_param_spec_uint64 ("repair-rtcp-input", "PROP_VQEC_REPAIR_RTCP_INPUTS",
+          "repair/rcc rtcp pkts received", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_FEC_INPUTS,
+      g_param_spec_uint64 ("fec-inputs", "PROP_VQEC_FEC_INPUTS",
+          "fec pkts receive", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_FEC_DROPS,
+      g_param_spec_uint64 ("fec-drops", "PROP_VQEC_FEC_DROPS",
+           "fec pkts dropped, due to reasons such as:             \n"
+           "                         o invalid RTP header       \n"
+           "                         o invalid FEC header       \n"
+           "                         o packet arrived too late  \n"
+           "                         o memory allocation error while processing FEC pkt o etc."
+          , 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_FEC_DROPS_LATE,
+      g_param_spec_uint64 ("fec-drops-late", "PROP_VQEC_FEC_DROPS_LATE",
+          "fec pkts which arrived too late (a primary packet to which it"
+          " refers has already been scheduled for output)", 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTP_STUN_INPUTS,
+      g_param_spec_uint64 ("repair-rtp-stun-inputs", "PROP_VQEC_REPAIR_RTP_STUN_INPUTS",
+          "STUN pts rcvd on repair rtp port" , 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTP_STUN_OUTPUTS,
+      g_param_spec_uint64 ("repair-rtp-stun-outputs", "PROP_VQEC_REPAIR_RTP_STUN_OUTPUTS",
+          "STUN pkts sent on repair rtp port" , 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTCP_STUN_INPUTS,
+      g_param_spec_uint64 ("repair-rtcp-stun-inputs", "PROP_VQEC_REPAIR_RTCP_STUN_INPUTS",
+          "STUN pkts rcvd on repair rtcp port" , 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIR_RTCP_STUN_OUTPUTS,
+      g_param_spec_uint64 ("repair-rtcp-stun-outputs", "PROP_VQEC_REPAIR_RTCP_STUN_OUTPUTS",
+          "STUN pkts sent on repair rtcp port" , 0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_POST_REPAIR_OUTPUTS,
+      g_param_spec_uint64 ("post-repair-outputs", "PROP_VQEC_POST_REPAIR_OUTPUTS",
+          "post repair stream packets (common to all tuners which are tuned to the same channel)" ,
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_TUNER_QUEUE_DROPS,
+      g_param_spec_uint64 ("tuner-queue-drops", "PROP_VQEC_TUNER_QUEUE_DROPS",
+          "drops during pak enqueue on tuner/sink (e.g. due to queue limit reached)" ,
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_UNDERRUNS,
+      g_param_spec_uint64 ("underruns", "PROP_VQEC_UNDERRUNS",
+          "underruns upon inserting packets of the input streams" ,
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_PRE_REPAIR_LOSSES,
+      g_param_spec_uint64 ("pre-repair-losses", "PROP_VQEC_PRE_REPAIR_LOSSES",
+           "number of primary rtp pkts not arriving within the stream\n"
+           "                        E.g. an arriving pkt stream of sequence numbers\n"
+           "                        1,4,5,7,8 will bump this counter 3 times",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_POST_REPAIR_LOSSES,
+      g_param_spec_uint64 ("post-repair-losses", "PROP_VQEC_POST_REPAIR_LOSSES",
+          "number of rtp packets which were missing (not repaired) upon output to the tuner", 
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_POST_REPAIR_LOSSES_RCC,
+      g_param_spec_uint64 ("post-repair-losses-rcc", "PROP_VQEC_POST_REPAIR_LOSSES_RCC",
+           "number of rcc rtp pkts which were missing (not repaired) upon output to the tuner\n"      
+           "                        I.e. any packets missing from an RCC burst and not repaired would be counted by this counter", 
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIRS_REQUESTED,
+      g_param_spec_uint64 ("repairs-requested", "PROP_VQEC_REPAIRS_REQUESTED",
+           "number of repair packets requested by VQE-C",      
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_REPAIRS_POLICED,
+      g_param_spec_uint64 ("repairs-policed", "PROP_VQEC_REPAIRS_POLICED",
+           "number of repair requests not sent due to rate limiting",      
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_VQEC_FEC_RECOVERED_PAKS,
+      g_param_spec_uint64 ("fec-recovered-paks", "PROP_VQEC_FEC_RECOVERED_PAKS",
+           "packets successfully regenerated/repaired by FEC",      
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
@@ -274,7 +472,19 @@ static void
 gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
+  vqec_ifclient_stats_t stats;
+  vqec_error_t error;
+
   GstVQESrc *vqesrc = GST_VQESRC (object);
+
+  memset( &stats, 0, sizeof ( stats ) );
+  error = vqec_ifclient_get_stats( &stats );
+  
+  if ( error != VQEC_OK )
+  {
+        GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), STREAM, FAILED, (NULL),
+                      ("Failed to get VQE-C tuner stats"));
+  }
 
   switch (prop_id) {
     case PROP_SDP:
@@ -282,6 +492,87 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_CFG:
       g_value_set_string (value, vqesrc->cfg);
+      break;
+    case PROP_VQEC_PRIMARY_UDP_INPUTS:
+      g_value_set_uint64 ( value, stats.primary_udp_inputs );
+      break;
+    case PROP_VQEC_PRIMARY_UDP_DROPS:
+      g_value_set_uint64 ( value, stats.primary_udp_drops );
+      break;
+    case PROP_VQEC_PRIMARY_RTP_INPUTS:
+      g_value_set_uint64 ( value, stats.primary_rtp_inputs );
+      break;
+    case PROP_VQEC_PRIMARY_RTP_DROPS:
+      g_value_set_uint64 ( value, stats.primary_rtp_drops );
+      break;
+    case PROP_VQEC_PRIMARY_RTP_DROPS_LATE:
+      g_value_set_uint64 ( value, stats.primary_rtp_drops_late );
+      break;
+    case PROP_VQEC_PRIMARY_RTCP_INPUTS:
+      g_value_set_uint64 ( value, stats.primary_rtcp_inputs );
+      break;
+    case PROP_VQEC_PRIMARY_RTCP_OUTPUTS:
+      g_value_set_uint64 ( value, stats.primary_rtcp_outputs );
+      break;
+    case PROP_VQEC_REPAIR_RTP_INPUTS:
+      g_value_set_uint64 ( value, stats.repair_rtp_inputs );
+      break;
+    case PROP_VQEC_REPAIR_RTP_DROPS:
+      g_value_set_uint64 ( value, stats.repair_rtp_drops );
+      break;
+    case PROP_VQEC_REPAIR_RTP_DROPS_LATE:
+      g_value_set_uint64 ( value, stats.repair_rtp_drops_late );
+      break;
+    case PROP_VQEC_REPAIR_RTCP_INPUTS:
+      g_value_set_uint64 ( value, stats.repair_rtcp_inputs );
+      break;
+    case PROP_VQEC_FEC_INPUTS:
+      g_value_set_uint64 ( value, stats.fec_inputs );
+      break;
+    case PROP_VQEC_FEC_DROPS:
+      g_value_set_uint64 ( value, stats.fec_drops );
+      break;
+    case PROP_VQEC_FEC_DROPS_LATE:
+      g_value_set_uint64 ( value, stats.fec_drops_late );
+      break;
+    case PROP_VQEC_REPAIR_RTP_STUN_INPUTS:
+      g_value_set_uint64 ( value, stats.repair_rtp_stun_inputs );
+      break;
+    case PROP_VQEC_REPAIR_RTP_STUN_OUTPUTS:
+      g_value_set_uint64 ( value, stats.repair_rtp_stun_outputs );
+      break;
+    case PROP_VQEC_REPAIR_RTCP_STUN_INPUTS:
+      g_value_set_uint64 ( value, stats.repair_rtcp_stun_inputs );
+      break;
+    case PROP_VQEC_REPAIR_RTCP_STUN_OUTPUTS:
+      g_value_set_uint64 ( value, stats.repair_rtcp_stun_outputs );
+      break;
+    case PROP_VQEC_POST_REPAIR_OUTPUTS:
+      g_value_set_uint64 ( value, stats.post_repair_outputs );
+      break;
+    case PROP_VQEC_TUNER_QUEUE_DROPS:
+      g_value_set_uint64 ( value, stats.tuner_queue_drops );
+      break;
+    case PROP_VQEC_UNDERRUNS:
+      g_value_set_uint64 ( value, stats.underruns );
+      break;
+    case PROP_VQEC_PRE_REPAIR_LOSSES:
+      g_value_set_uint64 ( value, stats.pre_repair_losses );
+      break;
+    case PROP_VQEC_POST_REPAIR_LOSSES:
+      g_value_set_uint64 ( value, stats.post_repair_losses );
+      break;
+    case PROP_VQEC_POST_REPAIR_LOSSES_RCC:
+      g_value_set_uint64 ( value, stats.post_repair_losses_rcc );
+      break;
+    case PROP_VQEC_REPAIRS_REQUESTED:
+      g_value_set_uint64 ( value, stats.repairs_requested );
+      break;
+    case PROP_VQEC_REPAIRS_POLICED:
+      g_value_set_uint64 ( value, stats.repairs_policed );
+      break;
+    case PROP_VQEC_FEC_RECOVERED_PAKS:
+      g_value_set_uint64 ( value, stats.fec_recovered_paks );
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
