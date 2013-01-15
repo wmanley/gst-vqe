@@ -23,3 +23,5 @@ build-*
 .libs
 *.la
 *.lo
+*.o
+tools/vqe-launch
