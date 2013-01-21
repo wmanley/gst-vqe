@@ -49,6 +49,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <limits.h>
 
 GST_DEBUG_CATEGORY_STATIC (vqesrc_debug);
@@ -62,7 +63,26 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 #define VQE_DEFAULT_SDP                 ""
 #define VQE_DEFAULT_CFG                 ""
 
-static const size_t buffer_size = 4096; // 4KB
+/*
+ * A word of explanation here...
+ * Cisco's VQEC was designed in sucha way that it makes it quite a pain
+ * to turn it into a GST element. This is mainly because of a global shared
+ * state. The fact that there's a global  vqec_ifclient_init function or 
+ * global vqec_ifclient_start event loop illustrates my point.
+ * To make it work as gstreamer elements are expected to work I've hammered
+ * in a mutex and a refcount that are used to pass the ownership of the event
+ * loop worker thread. This isn't pretty, but it works. 
+ * 
+ * Thanks for understanding,
+ * Anonymouse.
+ */
+
+GMutex vqe_owner_mutex;              /* refcount and task access lock */
+GRecMutex vqe_owner_task_mutex;      /* gstreamer task lock           */
+GstTask *vqe_owner_task = NULL;      /* worker thread task            */
+size_t  vqe_owner_refcount = 0;      /* shared state refcout          */
+
+static const size_t buffer_size = 4096; /* 4KB */
 
 enum
 {
@@ -98,7 +118,7 @@ enum
   PROP_VQEC_REPAIRS_REQUESTED,
   PROP_VQEC_REPAIRS_POLICED,
   PROP_VQEC_FEC_RECOVERED_PAKS,
-  // TODO: not implemented yet
+  /* TODO: not implemented yet */
   PROP_VQEC_CHANNEL_CHANGE_REQUESTS,
   PROP_VQEC_RCC_REQUESTS,
   PROP_VQEC_CONCURRENT_RCCS_LIMITED,
@@ -135,6 +155,8 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
   GstElementClass *gstelement_class;
   GstBaseSrcClass *gstbasesrc_class;
   GstPushSrcClass *gstpushsrc_class;
+  int err;
+  char* vqec_config = NULL;
 
   gobject_class = (GObjectClass *) klass;
   gstelement_class = (GstElementClass *) klass;
@@ -332,6 +354,21 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
   gstbasesrc_class->unlock_stop = gst_vqesrc_unlock_stop;
 
   gstpushsrc_class->create = gst_vqesrc_create;
+
+  vqec_config = getenv("GSTVQE_CFG_PATH");
+
+  if ( !vqec_config )
+  {
+    vqec_config = CONFIG_DIR "/vqe-c/vqe-c.cfg";
+  }
+  GST_INFO(stderr, "VQEC: initialising with config file: %s\n", vqec_config );
+  err = vqec_ifclient_init( vqec_config );
+  if (err) {
+    GST_INFO(stderr, "Failed to initialise VQE-C: %s\n", vqec_err2str(err));
+  }
+
+  g_mutex_init ( &vqe_owner_mutex );
+  g_rec_mutex_init ( &vqe_owner_task_mutex );
 }
 
 static void
@@ -339,9 +376,6 @@ gst_vqesrc_init (GstVQESrc * vqesrc)
 {
   vqesrc->sdp = g_strdup (VQE_DEFAULT_SDP);
   vqesrc->cfg = g_strdup (VQE_DEFAULT_CFG);
-
-  // mutex used for control VQE worker thread
-  g_rec_mutex_init ( &vqesrc->vqe_task_lock);
 
   /* configure basesrc to be a live source */
   gst_base_src_set_live (GST_BASE_SRC (vqesrc), TRUE);
@@ -365,8 +399,6 @@ gst_vqesrc_finalize (GObject * object)
   g_free (vqesrc->cfg);
   vqesrc->cfg = NULL;
 
-  g_rec_mutex_clear ( &vqesrc->vqe_task_lock );
-
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -384,9 +416,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   vqec_iobuf_t buflist[1];
   memset(buflist, 0, sizeof(buflist));
 
-  /* I know mallocing and freeing in the loop is a really bad idea from
-     a performance perspective but I want to make this as easy to port to
-     gstreamer as possible */
   buflist[0].buf_ptr = g_malloc(buffer_size);
   buflist[0].buf_len = buffer_size;
   if (!buflist[0].buf_ptr) {
@@ -580,21 +609,6 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   }
 }
 
-static void
-vqe_worker(void* pVqeSrc)
-{
-  /* Guaranteed to block until we call vqec_ifclient_stop */
-  vqec_ifclient_start();
-
-  // gst_task's repeated call worker function until stop is called
-  // we want single shot behaviour.  Stop here so can use vqec_ifclient_stop
-  // throughout code base without worrying about race conditions
-  GstVQESrc* src = (GstVQESrc*) (pVqeSrc);
-  GST_OBJECT_LOCK (src);
-  gst_task_stop (src->vqe_task);
-  GST_OBJECT_UNLOCK (src);
-}
-
 static gboolean
 gst_vqesrc_tune (GstVQESrc * src, gchar* sdp)
 {
@@ -624,6 +638,7 @@ gst_vqesrc_tune (GstVQESrc * src, gchar* sdp)
                       ("Failed to bind channel: %s", vqec_err2str(err)));
     goto out;
   }
+
   success = TRUE;
 out:
   if (bp) {
@@ -632,60 +647,78 @@ out:
   return success;
 }
 
+/*
+ *  Manage global VQE-C state
+ */
+
+static void
+vqe_worker(void)
+{
+  vqec_ifclient_start();
+}
+
+static void
+setup_worker(void)
+{
+  g_mutex_lock ( &vqe_owner_mutex );
+
+  if (vqe_owner_refcount == 0 ) 
+  {
+    vqe_owner_task = gst_task_new ((GstTaskFunction) vqe_worker, NULL, NULL);
+    gst_task_set_lock (vqe_owner_task, &vqe_owner_task_mutex );
+    gst_task_start (vqe_owner_task);
+  }
+
+  vqe_owner_refcount++;
+
+  g_mutex_unlock ( &vqe_owner_mutex );
+}
+
+static void
+destroy_worker(void)
+{
+  g_mutex_lock ( &vqe_owner_mutex );
+  
+  if ( vqe_owner_refcount == 1 ) {
+    gst_task_stop(vqe_owner_task);
+    vqec_ifclient_stop();
+    gst_task_join(vqe_owner_task);
+    g_object_unref(vqe_owner_task);
+    vqe_owner_task = NULL;
+  }    
+
+  vqe_owner_refcount--;
+
+  g_mutex_unlock ( &vqe_owner_mutex );
+}
+
 /* create a socket for sending to remote machine */
 static gboolean
 gst_vqesrc_start (GstBaseSrc * bsrc)
 {
   GstVQESrc *src;
   vqec_error_t err = 0;
+  char tunerName[64];
 
   src = GST_VQESRC (bsrc);
 
-  err = vqec_ifclient_init(src->cfg);
-  if (err) {
-    fprintf(stderr, "Failed to initialise VQE-C: %s\n", vqec_err2str(err));
-    goto err;
-  }
+  /* Create unique tuner name. 
+    Unique at least in this process, which is what we care about. */
 
-  /* TODO: Create vqetuner elements rather than vqesrc or vqebin */
-  err = vqec_ifclient_tuner_create(&src->tuner, "mytuner");
+  snprintf( tunerName, sizeof(tunerName), "tuner%p", src );
+  err = vqec_ifclient_tuner_create(&src->tuner, tunerName );
   if (err) {
-    fprintf(stderr, "Failed to create tuner: %s\n", vqec_err2str(err));
-    goto err_inited;
+    GST_INFO(stderr, "Failed to create tuner: %s\n", vqec_err2str(err));
+    goto err;
   }
   gst_vqesrc_tune(src, src->sdp);
 
-  GST_OBJECT_LOCK (src);
-
-  src->vqe_task = gst_task_new ((GstTaskFunction) vqe_worker, src, NULL);
-  if (src->vqe_task == NULL) {
-	  GST_OBJECT_UNLOCK (src);
-	  goto task_error;
-  }
-  else
-  {
-	  gst_task_set_lock (src->vqe_task, &src->vqe_task_lock );
-
-	  gboolean started = gst_task_start (src->vqe_task);
-	  GST_OBJECT_UNLOCK (src);
-
-	  if( !started )
-		  goto task_error;
-  }
+  setup_worker();
 
   return TRUE;
 
-/* error handling
-  vqec_ifclient_stop();
-  gst_task_join(src->vqe_task);
-  g_object_unref(G_OBJECT(src->vqe_task));
-  src->vqe_task = NULL;*/
-
 task_error:
-//err_tuner:
   vqec_ifclient_tuner_destroy(src->tuner);
-err_inited:
-  vqec_ifclient_deinit();
 err:
   return FALSE;
 }
@@ -697,9 +730,6 @@ gst_vqesrc_unlock (GstBaseSrc * bsrc)
 
   src = GST_VQESRC (bsrc);
 
-  GST_LOG_OBJECT (src, "Flushing");
-  vqec_ifclient_stop();
-
   return TRUE;
 }
 
@@ -708,26 +738,18 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
 {
   GstVQESrc *src = GST_VQESRC (bsrc);
 
-  // shutdown vqe worker thread
+  /* attempt to shutdown vqe worker thread
+    this is a global refcounted resource  */
+
+  destroy_worker();
+  
   GST_OBJECT_LOCK (src);
-  if ( NULL != src->vqe_task )
-  {
-	  GST_OBJECT_UNLOCK (src);
-
-	  // only call vqec_ifclient_stop, gst_task_stop is called behind the scenes
-	  // src->vqe_task is needed by worker thread
-	  vqec_ifclient_stop();
-	  gst_task_join(src->vqe_task);
-	  g_object_unref(G_OBJECT(src->vqe_task));
-	  src->vqe_task = NULL;
-
-  }
-  else
-	  GST_OBJECT_UNLOCK (src);
-
-
   vqec_ifclient_tuner_destroy(src->tuner);
-  vqec_ifclient_deinit();
+  GST_OBJECT_UNLOCK (src);
+
+  /* sadly we have to leak global context of vqec
+     vqec_ifclient_deinit(); */
+
   return TRUE;
 }
 
