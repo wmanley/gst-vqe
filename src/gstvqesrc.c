@@ -410,6 +410,8 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   vqesrc = GST_VQESRC_CAST (psrc);
 
+  GST_OBJECT_LOCK (vqesrc);
+
   /* TODO: deal with cancellation somehow... Probably need to return
      GST_FLOW_FLUSHING */
   int32_t bytes_read = 0;
@@ -451,12 +453,13 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
   saddr = NULL;
 #endif
-
+  GST_OBJECT_UNLOCK (vqesrc);
   *buf = outbuf;
   return GST_FLOW_OK;
 buf_error:
     g_free(buflist[0].buf_ptr);
 error:
+    GST_OBJECT_UNLOCK (vqesrc);
     return GST_FLOW_ERROR;
 }
 
@@ -702,6 +705,8 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
 
   src = GST_VQESRC (bsrc);
 
+  GST_OBJECT_LOCK (src);
+
   /* Create unique tuner name. 
     Unique at least in this process, which is what we care about. */
 
@@ -714,6 +719,8 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   gst_vqesrc_tune(src, src->sdp);
 
   setup_worker();
+
+  GST_OBJECT_UNLOCK (src);
 
   return TRUE;
 
@@ -740,10 +747,9 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
 
   /* attempt to shutdown vqe worker thread
     this is a global refcounted resource  */
-
-  destroy_worker();
   
   GST_OBJECT_LOCK (src);
+  destroy_worker();  
   vqec_ifclient_tuner_destroy(src->tuner);
   GST_OBJECT_UNLOCK (src);
 
