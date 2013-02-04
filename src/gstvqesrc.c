@@ -393,6 +393,8 @@ gst_vqesrc_finalize (GObject * object)
 
   vqesrc = GST_VQESRC (object);
 
+  GST_OBJECT_LOCK (vqesrc);
+
   g_free (vqesrc->sdp);
   vqesrc->sdp = NULL;
 
@@ -400,6 +402,8 @@ gst_vqesrc_finalize (GObject * object)
   vqesrc->cfg = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
+
+  GST_OBJECT_UNLOCK (vqesrc);
 }
 
 static GstFlowReturn
@@ -488,6 +492,8 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
 {
   GstVQESrc *vqesrc = GST_VQESRC (object);
 
+  GST_OBJECT_LOCK (vqesrc);
+
   switch (prop_id) {
     case PROP_SDP:
       gst_vqesrc_set_sdp (vqesrc, g_value_get_string (value), NULL);
@@ -498,6 +504,7 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
     default:
       break;
   }
+  GST_OBJECT_UNLOCK (vqesrc);
 }
 
 static void
@@ -508,6 +515,7 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   vqec_error_t error;
 
   GstVQESrc *vqesrc = GST_VQESRC (object);
+  GST_OBJECT_LOCK (vqesrc);
 
   memset( &stats, 0, sizeof ( stats ) );
   error = vqec_ifclient_get_stats( &stats );
@@ -610,6 +618,7 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  GST_OBJECT_UNLOCK (vqesrc);
 }
 
 static gboolean
@@ -750,6 +759,7 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
   
   GST_OBJECT_LOCK (src);
   destroy_worker();  
+  vqec_ifclient_tuner_unbind_chan(src->tuner);
   vqec_ifclient_tuner_destroy(src->tuner);
   GST_OBJECT_UNLOCK (src);
 
