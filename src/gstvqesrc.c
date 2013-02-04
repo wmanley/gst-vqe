@@ -393,6 +393,8 @@ gst_vqesrc_finalize (GObject * object)
 
   vqesrc = GST_VQESRC (object);
 
+  GST_OBJECT_LOCK (vqesrc);
+
   g_free (vqesrc->sdp);
   vqesrc->sdp = NULL;
 
@@ -400,6 +402,8 @@ gst_vqesrc_finalize (GObject * object)
   vqesrc->cfg = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
+
+  GST_OBJECT_UNLOCK (vqesrc);
 }
 
 static GstFlowReturn
@@ -409,6 +413,8 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GstBuffer *outbuf;
 
   vqesrc = GST_VQESRC_CAST (psrc);
+
+  GST_OBJECT_LOCK (vqesrc);
 
   /* TODO: deal with cancellation somehow... Probably need to return
      GST_FLOW_FLUSHING */
@@ -451,12 +457,13 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
   saddr = NULL;
 #endif
-
+  GST_OBJECT_UNLOCK (vqesrc);
   *buf = outbuf;
   return GST_FLOW_OK;
 buf_error:
     g_free(buflist[0].buf_ptr);
 error:
+    GST_OBJECT_UNLOCK (vqesrc);
     return GST_FLOW_ERROR;
 }
 
@@ -485,6 +492,8 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
 {
   GstVQESrc *vqesrc = GST_VQESRC (object);
 
+  GST_OBJECT_LOCK (vqesrc);
+
   switch (prop_id) {
     case PROP_SDP:
       gst_vqesrc_set_sdp (vqesrc, g_value_get_string (value), NULL);
@@ -495,6 +504,7 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
     default:
       break;
   }
+  GST_OBJECT_UNLOCK (vqesrc);
 }
 
 static void
@@ -505,9 +515,10 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   vqec_error_t error;
 
   GstVQESrc *vqesrc = GST_VQESRC (object);
+  GST_OBJECT_LOCK (vqesrc);
 
   memset( &stats, 0, sizeof ( stats ) );
-  error = vqec_ifclient_get_stats( &stats );
+  error = vqec_ifclient_get_stats_channel( vqesrc->stream_uri, &stats );
   
   if ( error != VQEC_OK )
   {
@@ -607,6 +618,7 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  GST_OBJECT_UNLOCK (vqesrc);
 }
 
 static gboolean
@@ -638,6 +650,9 @@ gst_vqesrc_tune (GstVQESrc * src, gchar* sdp)
                       ("Failed to bind channel: %s", vqec_err2str(err)));
     goto out;
   }
+
+  /* format a stream uri to be used for per channel stats queries */
+  snprintf( src->stream_uri, sizeof ( src->stream_uri ), "rtp://%s:%d",  inet_ntoa( cfg.primary_dest_addr ), (int)ntohs(cfg.primary_dest_port) );
 
   success = TRUE;
 out:
@@ -702,6 +717,8 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
 
   src = GST_VQESRC (bsrc);
 
+  GST_OBJECT_LOCK (src);
+
   /* Create unique tuner name. 
     Unique at least in this process, which is what we care about. */
 
@@ -714,6 +731,8 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   gst_vqesrc_tune(src, src->sdp);
 
   setup_worker();
+
+  GST_OBJECT_UNLOCK (src);
 
   return TRUE;
 
@@ -740,10 +759,10 @@ gst_vqesrc_stop (GstBaseSrc * bsrc)
 
   /* attempt to shutdown vqe worker thread
     this is a global refcounted resource  */
-
-  destroy_worker();
   
   GST_OBJECT_LOCK (src);
+  destroy_worker();  
+  vqec_ifclient_tuner_unbind_chan(src->tuner);
   vqec_ifclient_tuner_destroy(src->tuner);
   GST_OBJECT_UNLOCK (src);
 
