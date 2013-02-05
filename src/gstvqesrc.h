@@ -57,6 +57,9 @@ struct _GstVQESrc {
   /* VQE resources */
   
   vqec_tunerid_t tuner;
+
+  /* parsed stream uri used for stats queries */
+  char stream_uri[128];
 };
 
 struct _GstVQESrcClass {

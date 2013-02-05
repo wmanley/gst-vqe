@@ -518,7 +518,7 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   GST_OBJECT_LOCK (vqesrc);
 
   memset( &stats, 0, sizeof ( stats ) );
-  error = vqec_ifclient_get_stats( &stats );
+  error = vqec_ifclient_get_stats_channel( vqesrc->stream_uri, &stats );
   
   if ( error != VQEC_OK )
   {
@@ -650,6 +650,10 @@ gst_vqesrc_tune (GstVQESrc * src, gchar* sdp)
                       ("Failed to bind channel: %s", vqec_err2str(err)));
     goto out;
   }
+
+  /* format a stream uri to be used for per channel stats queries */
+  snprintf( src->stream_uri, sizeof ( src->stream_uri ),  "rtp://%s:%d",  
+            inet_ntoa( cfg.primary_dest_addr ), (int)ntohs(cfg.primary_dest_port) );
 
   success = TRUE;
 out:
