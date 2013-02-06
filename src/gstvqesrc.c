@@ -125,6 +125,21 @@ enum
   PROP_VQEC_RCC_WITH_LOSS,
   PROP_VQEC_RCC_ABORTS_TOTAL,
   
+  PROP_TR135_OVERRUNS,
+  PROP_TR135_UNDERRUNS,
+  PROP_TR135_PACKETS_EXPECTED,
+  PROP_TR135_PACKETS_RECEIVED,
+  PROP_TR135_PACKETS_LOST,
+  PROP_TR135_PACKETS_LOST_BEFORE_EC,
+  PROP_TR135_LOSS_EVENTS,
+  PROP_TR135_LOSS_EVENTS_BEFORE_EC,
+  PROP_TR135_SEVERE_LOSS_INDEX_COUNT,
+  PROP_TR135_MINIMUM_LOSS_DISTANCE,
+  PROP_TR135_MAXIMUM_LOSS_PERIOD,
+  PROP_TR135_BUFFER_SIZE,
+  PROP_TR135_GMIN,
+  PROP_TR135_SEVERE_LOSS_MIN_DISTANCE,
+
   PROP_LAST
 };
 
@@ -340,6 +355,96 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+  /*
+   *    TR135 stats
+   */
+
+
+  g_object_class_install_property (gobject_class, PROP_TR135_OVERRUNS,
+      g_param_spec_uint64 ("tr135-overruns", "PROP_TR135_OVERRUNS",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_UNDERRUNS,
+      g_param_spec_uint64 ("tr135-underruns", "PROP_TR135_UNDERRUNS",
+           "some tr135 nonsense", 
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_EXPECTED,
+      g_param_spec_uint64 ("tr135-packets-expected", "PROP_TR135_PACKETS_EXPECTED",
+           "some tr135 nonsense", 
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_RECEIVED,
+      g_param_spec_uint64 ("tr135-packets-received", "PROP_TR135_PACKETS_RECEIVED",
+           "some tr135 nonsense", 
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_LOST,
+      g_param_spec_uint64 ("tr135-packets-lost", "PROP_TR135_PACKETS_LOST",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_LOST_BEFORE_EC,
+      g_param_spec_uint64 ("tr135-packets-lost-before-ec", "PROP_TR135_PACKETS_LOST_BEFORE_EC",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_LOSS_EVENTS,
+      g_param_spec_uint64 ("tr135-loss-events", "PROP_TR135_LOSS_EVENTS",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_LOSS_EVENTS_BEFORE_EC,
+      g_param_spec_uint64 ("tr135-loss-events-before-ec", "PROP_TR135_LOSS_EVENTS_BEFORE_EC",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_SEVERE_LOSS_INDEX_COUNT,
+      g_param_spec_uint64 ("tr135-severe-loss-index-count", "PROP_TR135_SEVERE_LOSS_INDEX_COUNT",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_MINIMUM_LOSS_DISTANCE,
+      g_param_spec_uint64 ("tr135-minimum-loss-distance", "PROP_TR135_MINIMUM_LOSS_DISTANCE",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_MAXIMUM_LOSS_PERIOD,
+      g_param_spec_uint64 ("tr135-maximum-loss-period", "PROP_TR135_MAXIMUM_LOSS_PERIOD",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_BUFFER_SIZE,
+      g_param_spec_uint64 ("tr135-buffer-size", "PROP_TR135_BUFFER_SIZE",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_GMIN,
+      g_param_spec_uint64 ("tr135-gmin", "PROP_TR135_GMIN",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TR135_SEVERE_LOSS_MIN_DISTANCE,
+      g_param_spec_uint64 ("tr135-severe-loss-min-distance", "PROP_TR135_SEVERE_LOSS_MIN_DISTANCE",
+           "some tr135 nonsense",
+           0, G_MAXUINT64, 0,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
 
@@ -518,106 +623,157 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   GST_OBJECT_LOCK (vqesrc);
 
   memset( &stats, 0, sizeof ( stats ) );
+
   error = vqec_ifclient_get_stats_channel( vqesrc->stream_uri, &stats );
   
   if ( error != VQEC_OK )
   {
-        GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), STREAM, FAILED, (NULL),
+    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), STREAM, FAILED, (NULL),
                       ("Failed to get VQE-C tuner stats"));
-  }
+    goto error;
+  } else {
+    switch (prop_id) {
+      case PROP_SDP:
+        g_value_set_string (value, vqesrc->sdp);
+        break;
+      case PROP_CFG:
+        g_value_set_string (value, vqesrc->cfg);
+        break;
+      case PROP_VQEC_PRIMARY_UDP_INPUTS:
+        g_value_set_uint64 ( value, stats.primary_udp_inputs );
+        break;
+      case PROP_VQEC_PRIMARY_UDP_DROPS:
+        g_value_set_uint64 ( value, stats.primary_udp_drops );
+        break;
+      case PROP_VQEC_PRIMARY_RTP_INPUTS:
+        g_value_set_uint64 ( value, stats.primary_rtp_inputs );
+        break;
+      case PROP_VQEC_PRIMARY_RTP_DROPS:
+        g_value_set_uint64 ( value, stats.primary_rtp_drops );
+        break;
+      case PROP_VQEC_PRIMARY_RTP_DROPS_LATE:
+        g_value_set_uint64 ( value, stats.primary_rtp_drops_late );
+        break;
+      case PROP_VQEC_PRIMARY_RTCP_INPUTS:
+        g_value_set_uint64 ( value, stats.primary_rtcp_inputs );
+        break;
+      case PROP_VQEC_PRIMARY_RTCP_OUTPUTS:
+        g_value_set_uint64 ( value, stats.primary_rtcp_outputs );
+        break;
+      case PROP_VQEC_REPAIR_RTP_INPUTS:
+        g_value_set_uint64 ( value, stats.repair_rtp_inputs );
+        break;
+      case PROP_VQEC_REPAIR_RTP_DROPS:
+        g_value_set_uint64 ( value, stats.repair_rtp_drops );
+        break;
+      case PROP_VQEC_REPAIR_RTP_DROPS_LATE:
+        g_value_set_uint64 ( value, stats.repair_rtp_drops_late );
+        break;
+      case PROP_VQEC_REPAIR_RTCP_INPUTS:
+        g_value_set_uint64 ( value, stats.repair_rtcp_inputs );
+        break;
+      case PROP_VQEC_FEC_INPUTS:
+        g_value_set_uint64 ( value, stats.fec_inputs );
+        break;
+      case PROP_VQEC_FEC_DROPS:
+        g_value_set_uint64 ( value, stats.fec_drops );
+        break;
+      case PROP_VQEC_FEC_DROPS_LATE:
+        g_value_set_uint64 ( value, stats.fec_drops_late );
+        break;
+      case PROP_VQEC_REPAIR_RTP_STUN_INPUTS:
+        g_value_set_uint64 ( value, stats.repair_rtp_stun_inputs );
+        break;
+      case PROP_VQEC_REPAIR_RTP_STUN_OUTPUTS:
+        g_value_set_uint64 ( value, stats.repair_rtp_stun_outputs );
+        break;
+      case PROP_VQEC_REPAIR_RTCP_STUN_INPUTS:
+        g_value_set_uint64 ( value, stats.repair_rtcp_stun_inputs );
+        break;
+      case PROP_VQEC_REPAIR_RTCP_STUN_OUTPUTS:
+        g_value_set_uint64 ( value, stats.repair_rtcp_stun_outputs );
+        break;
+      case PROP_VQEC_POST_REPAIR_OUTPUTS:
+        g_value_set_uint64 ( value, stats.post_repair_outputs );
+        break;
+      case PROP_VQEC_TUNER_QUEUE_DROPS:
+        g_value_set_uint64 ( value, stats.tuner_queue_drops );
+        break;
+      case PROP_VQEC_UNDERRUNS:
+        g_value_set_uint64 ( value, stats.underruns );
+        break;
+      case PROP_VQEC_PRE_REPAIR_LOSSES:
+        g_value_set_uint64 ( value, stats.pre_repair_losses );
+        break;
+      case PROP_VQEC_POST_REPAIR_LOSSES:
+        g_value_set_uint64 ( value, stats.post_repair_losses );
+        break;
+      case PROP_VQEC_POST_REPAIR_LOSSES_RCC:
+        g_value_set_uint64 ( value, stats.post_repair_losses_rcc );
+        break;
+      case PROP_VQEC_REPAIRS_REQUESTED:
+        g_value_set_uint64 ( value, stats.repairs_requested );
+        break;
+      case PROP_VQEC_REPAIRS_POLICED:
+        g_value_set_uint64 ( value, stats.repairs_policed );
+        break;
+      case PROP_VQEC_FEC_RECOVERED_PAKS:
+        g_value_set_uint64 ( value, stats.fec_recovered_paks );
+        break;
 
-  switch (prop_id) {
-    case PROP_SDP:
-      g_value_set_string (value, vqesrc->sdp);
-      break;
-    case PROP_CFG:
-      g_value_set_string (value, vqesrc->cfg);
-      break;
-    case PROP_VQEC_PRIMARY_UDP_INPUTS:
-      g_value_set_uint64 ( value, stats.primary_udp_inputs );
-      break;
-    case PROP_VQEC_PRIMARY_UDP_DROPS:
-      g_value_set_uint64 ( value, stats.primary_udp_drops );
-      break;
-    case PROP_VQEC_PRIMARY_RTP_INPUTS:
-      g_value_set_uint64 ( value, stats.primary_rtp_inputs );
-      break;
-    case PROP_VQEC_PRIMARY_RTP_DROPS:
-      g_value_set_uint64 ( value, stats.primary_rtp_drops );
-      break;
-    case PROP_VQEC_PRIMARY_RTP_DROPS_LATE:
-      g_value_set_uint64 ( value, stats.primary_rtp_drops_late );
-      break;
-    case PROP_VQEC_PRIMARY_RTCP_INPUTS:
-      g_value_set_uint64 ( value, stats.primary_rtcp_inputs );
-      break;
-    case PROP_VQEC_PRIMARY_RTCP_OUTPUTS:
-      g_value_set_uint64 ( value, stats.primary_rtcp_outputs );
-      break;
-    case PROP_VQEC_REPAIR_RTP_INPUTS:
-      g_value_set_uint64 ( value, stats.repair_rtp_inputs );
-      break;
-    case PROP_VQEC_REPAIR_RTP_DROPS:
-      g_value_set_uint64 ( value, stats.repair_rtp_drops );
-      break;
-    case PROP_VQEC_REPAIR_RTP_DROPS_LATE:
-      g_value_set_uint64 ( value, stats.repair_rtp_drops_late );
-      break;
-    case PROP_VQEC_REPAIR_RTCP_INPUTS:
-      g_value_set_uint64 ( value, stats.repair_rtcp_inputs );
-      break;
-    case PROP_VQEC_FEC_INPUTS:
-      g_value_set_uint64 ( value, stats.fec_inputs );
-      break;
-    case PROP_VQEC_FEC_DROPS:
-      g_value_set_uint64 ( value, stats.fec_drops );
-      break;
-    case PROP_VQEC_FEC_DROPS_LATE:
-      g_value_set_uint64 ( value, stats.fec_drops_late );
-      break;
-    case PROP_VQEC_REPAIR_RTP_STUN_INPUTS:
-      g_value_set_uint64 ( value, stats.repair_rtp_stun_inputs );
-      break;
-    case PROP_VQEC_REPAIR_RTP_STUN_OUTPUTS:
-      g_value_set_uint64 ( value, stats.repair_rtp_stun_outputs );
-      break;
-    case PROP_VQEC_REPAIR_RTCP_STUN_INPUTS:
-      g_value_set_uint64 ( value, stats.repair_rtcp_stun_inputs );
-      break;
-    case PROP_VQEC_REPAIR_RTCP_STUN_OUTPUTS:
-      g_value_set_uint64 ( value, stats.repair_rtcp_stun_outputs );
-      break;
-    case PROP_VQEC_POST_REPAIR_OUTPUTS:
-      g_value_set_uint64 ( value, stats.post_repair_outputs );
-      break;
-    case PROP_VQEC_TUNER_QUEUE_DROPS:
-      g_value_set_uint64 ( value, stats.tuner_queue_drops );
-      break;
-    case PROP_VQEC_UNDERRUNS:
-      g_value_set_uint64 ( value, stats.underruns );
-      break;
-    case PROP_VQEC_PRE_REPAIR_LOSSES:
-      g_value_set_uint64 ( value, stats.pre_repair_losses );
-      break;
-    case PROP_VQEC_POST_REPAIR_LOSSES:
-      g_value_set_uint64 ( value, stats.post_repair_losses );
-      break;
-    case PROP_VQEC_POST_REPAIR_LOSSES_RCC:
-      g_value_set_uint64 ( value, stats.post_repair_losses_rcc );
-      break;
-    case PROP_VQEC_REPAIRS_REQUESTED:
-      g_value_set_uint64 ( value, stats.repairs_requested );
-      break;
-    case PROP_VQEC_REPAIRS_POLICED:
-      g_value_set_uint64 ( value, stats.repairs_policed );
-      break;
-    case PROP_VQEC_FEC_RECOVERED_PAKS:
-      g_value_set_uint64 ( value, stats.fec_recovered_paks );
-      break;
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
+      /*
+       * TR135
+       */
+
+      case PROP_TR135_OVERRUNS:
+        g_value_set_uint64 ( value, stats.tr135_overruns );
+        break;
+      case PROP_TR135_UNDERRUNS:
+        g_value_set_uint64 ( value, stats.tr135_underruns );
+        break;
+      case PROP_TR135_PACKETS_EXPECTED:
+        g_value_set_uint64 ( value, stats.tr135_packets_expected );
+        break;
+      case PROP_TR135_PACKETS_RECEIVED:
+        g_value_set_uint64 ( value, stats.tr135_packets_received );
+        break;
+      case PROP_TR135_PACKETS_LOST:
+        g_value_set_uint64 ( value, stats.tr135_packets_lost );
+        break;
+      case PROP_TR135_PACKETS_LOST_BEFORE_EC:
+        g_value_set_uint64 ( value, stats.tr135_packets_lost_before_ec );
+        break;
+      case PROP_TR135_LOSS_EVENTS:
+        g_value_set_uint64 ( value, stats.tr135_loss_events );
+        break;
+      case PROP_TR135_LOSS_EVENTS_BEFORE_EC:
+        g_value_set_uint64 ( value, stats.tr135_loss_events_before_ec );
+        break;
+      case PROP_TR135_SEVERE_LOSS_INDEX_COUNT:
+        g_value_set_uint64 ( value, stats.tr135_severe_loss_index_count );
+        break;
+      case PROP_TR135_MINIMUM_LOSS_DISTANCE:
+        g_value_set_uint64 ( value, stats.tr135_minimum_loss_distance );
+        break;
+      case PROP_TR135_MAXIMUM_LOSS_PERIOD:
+        g_value_set_uint64 ( value, stats.tr135_maximum_loss_period );
+        break;
+      case PROP_TR135_BUFFER_SIZE:
+        g_value_set_uint64 ( value, stats.tr135_buffer_size );
+        break;
+      case PROP_TR135_GMIN:
+        g_value_set_uint64 ( value, stats.tr135_gmin );
+        break;
+      case PROP_TR135_SEVERE_LOSS_MIN_DISTANCE:
+        g_value_set_uint64 ( value, stats.tr135_severe_loss_min_distance );
+        break;
+
+      default:
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+        break;
+    }
   }
+error:
   GST_OBJECT_UNLOCK (vqesrc);
 }
 
