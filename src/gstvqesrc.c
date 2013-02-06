@@ -511,7 +511,7 @@ static void
 gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
-  vqec_ifclient_stats_t stats;
+  vqec_ifclient_stats_channel_t stats;
   vqec_error_t error;
 
   GstVQESrc *vqesrc = GST_VQESRC (object);
