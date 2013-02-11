@@ -530,6 +530,7 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   buflist[0].buf_ptr = g_malloc(buffer_size);
   buflist[0].buf_len = buffer_size;
   if (!buflist[0].buf_ptr) {
+    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       FAILED, (NULL),
                       ("g_malloc(%i) failed", buffer_size));
@@ -538,6 +539,7 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   vqec_error_t err = vqec_ifclient_tuner_recvmsg(vqesrc->tuner, buflist, 1, &bytes_read, 1000000);
   if (err) {
+    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       READ, (NULL),
                       ("Error receiving data from VQE: %s", vqec_err2str(err)));
@@ -547,6 +549,7 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   outbuf = gst_buffer_new_wrapped_full(0, buflist[0].buf_ptr, buffer_size, 0,
                                        bytes_read, buflist[0].buf_ptr, g_free);
   if (!outbuf) {
+    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       FAILED, (NULL),
                       ("gst_buffer_new_wrapped_full failed!"));
@@ -568,7 +571,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 buf_error:
     g_free(buflist[0].buf_ptr);
 error:
-    GST_OBJECT_UNLOCK (vqesrc);
     return GST_FLOW_ERROR;
 }
 
@@ -620,17 +622,17 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   vqec_error_t error;
 
   GstVQESrc *vqesrc = GST_VQESRC (object);
-  GST_OBJECT_LOCK (vqesrc);
 
   memset( &stats, 0, sizeof ( stats ) );
 
+  GST_OBJECT_LOCK (vqesrc);
   error = vqec_ifclient_get_stats_channel( vqesrc->stream_uri, &stats );
+  GST_OBJECT_UNLOCK (vqesrc);
   
-  if ( error != VQEC_OK )
-  {
+  if ( error != VQEC_OK ){
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), STREAM, FAILED, (NULL),
                       ("Failed to get VQE-C tuner stats"));
-    goto error;
+    return;
   } else {
     switch (prop_id) {
       case PROP_SDP:
@@ -773,7 +775,6 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
         break;
     }
   }
-error:
   GST_OBJECT_UNLOCK (vqesrc);
 }
 
@@ -874,7 +875,6 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
 
   src = GST_VQESRC (bsrc);
 
-  GST_OBJECT_LOCK (src);
 
   /* Create unique tuner name. 
     Unique at least in this process, which is what we care about. */
@@ -888,8 +888,6 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   gst_vqesrc_tune(src, src->sdp);
 
   setup_worker();
-
-  GST_OBJECT_UNLOCK (src);
 
   return TRUE;
 
