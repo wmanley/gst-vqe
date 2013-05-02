@@ -185,7 +185,7 @@ gst_vqe_sdp_demux_create_vqesrc(GstVQESDPDemux * demux, gchar * sdp)
   gboolean success;
   assert(!demux->vqesrc);
   assert(sdp);
-  demux->vqesrc = gst_element_factory_make ("vqesrc", "src");
+  demux->vqesrc = gst_element_factory_make ("vqesrc", "vqesrc");
   if (!demux->vqesrc) {
     /* TODO: Handle this error */
     abort();
