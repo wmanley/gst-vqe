@@ -519,7 +519,12 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   vqesrc = GST_VQESRC_CAST (psrc);
 
-  GST_OBJECT_LOCK (vqesrc);
+  /* It is not necessary (nor desirable) to lock the vqesrc mutex here as VQE
+   * does it's own internal locking and the only vqesrc member we need to
+   * access is tuner id which is set in _start and _stop which GstBaseSrc
+   * guarantees will not be called at the same time as _create.  We don't want
+   * to hold the mutex to avoid blocking other methods (notably get_property)
+   * while waiting for data */
 
   /* TODO: deal with cancellation somehow... Probably need to return
      GST_FLOW_FLUSHING */
@@ -530,7 +535,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   buflist[0].buf_ptr = g_malloc(buffer_size);
   buflist[0].buf_len = buffer_size;
   if (!buflist[0].buf_ptr) {
-    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       FAILED, (NULL),
                       ("g_malloc(%i) failed", buffer_size));
@@ -539,7 +543,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   vqec_error_t err = vqec_ifclient_tuner_recvmsg(vqesrc->tuner, buflist, 1, &bytes_read, 1000000);
   if (err) {
-    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       READ, (NULL),
                       ("Error receiving data from VQE: %s", vqec_err2str(err)));
@@ -549,7 +552,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   outbuf = gst_buffer_new_wrapped_full(0, buflist[0].buf_ptr, buffer_size, 0,
                                        bytes_read, buflist[0].buf_ptr, g_free);
   if (!outbuf) {
-    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       FAILED, (NULL),
                       ("gst_buffer_new_wrapped_full failed!"));
@@ -565,7 +567,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
   saddr = NULL;
 #endif
-  GST_OBJECT_UNLOCK (vqesrc);
   *buf = outbuf;
   return GST_FLOW_OK;
 buf_error:
