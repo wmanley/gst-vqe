@@ -52,6 +52,13 @@
 #include <stdlib.h>
 #include <limits.h>
 
+
+/* Needed fix a implicit declaration warning for for inet_ntoa
+   introduced earlier. */
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 GST_DEBUG_CATEGORY_STATIC (vqesrc_debug);
 #define GST_CAT_DEFAULT (vqesrc_debug)
 
@@ -170,8 +177,8 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
   GstElementClass *gstelement_class;
   GstBaseSrcClass *gstbasesrc_class;
   GstPushSrcClass *gstpushsrc_class;
-  int err;
-  char* vqec_config = NULL;
+  int err=0;
+  const char* vqec_config = NULL;
 
   gobject_class = (GObjectClass *) klass;
   gstelement_class = (GstElementClass *) klass;
@@ -433,16 +440,16 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_GMIN,
-      g_param_spec_uint64 ("tr135-gmin", "PROP_TR135_GMIN",
+      g_param_spec_ulong ("tr135-gmin", "PROP_TR135_GMIN",
            "some tr135 nonsense",
-           0, G_MAXUINT64, 0,
-          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+           0, G_MAXULONG, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_SEVERE_LOSS_MIN_DISTANCE,
-      g_param_spec_uint64 ("tr135-severe-loss-min-distance", "PROP_TR135_SEVERE_LOSS_MIN_DISTANCE",
+      g_param_spec_ulong ("tr135-severe-loss-min-distance", "PROP_TR135_SEVERE_LOSS_MIN_DISTANCE",
            "some tr135 nonsense",
-           0, G_MAXUINT64, 0,
-          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+           0, G_MAXULONG, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
 
   gst_element_class_add_pad_template (gstelement_class,
@@ -489,6 +496,11 @@ gst_vqesrc_init (GstVQESrc * vqesrc)
   /* make basesrc set timestamps on outgoing buffers based on the running_time
    * when they were captured */
   gst_base_src_set_do_timestamp (GST_BASE_SRC (vqesrc), TRUE);
+
+  /* pickup some defaults */ 
+  vqesrc->tr135_params.gmin = 1;
+  vqesrc->tr135_params.severe_loss_min_distance = 2;
+  vqesrc->stream_uri[0] = '\0';
 }
 
 static void
@@ -608,6 +620,15 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
       break;
     case PROP_CFG:
       gst_vqesrc_set_cfg (vqesrc, g_value_get_string (value), NULL);
+      break;
+
+    case PROP_TR135_GMIN:
+      vqesrc->tr135_params.gmin = g_value_get_ulong (value);
+      vqec_ifclient_set_tr135_params_channel(vqesrc->stream_uri, &vqesrc->tr135_params);
+      break;
+    case PROP_TR135_SEVERE_LOSS_MIN_DISTANCE:
+      vqesrc->tr135_params.severe_loss_min_distance = g_value_get_ulong (value);
+      vqec_ifclient_set_tr135_params_channel(vqesrc->stream_uri, &vqesrc->tr135_params);
       break;
     default:
       break;
@@ -765,10 +786,10 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
         g_value_set_uint64 ( value, stats.tr135_buffer_size );
         break;
       case PROP_TR135_GMIN:
-        g_value_set_uint64 ( value, stats.tr135_gmin );
+        g_value_set_ulong ( value, stats.tr135_gmin );
         break;
       case PROP_TR135_SEVERE_LOSS_MIN_DISTANCE:
-        g_value_set_uint64 ( value, stats.tr135_severe_loss_min_distance );
+        g_value_set_ulong ( value, stats.tr135_severe_loss_min_distance );
         break;
 
       default:
@@ -795,6 +816,14 @@ gst_vqesrc_tune (GstVQESrc * src, gchar* sdp)
                       ("Failed to create bind params"));
     goto out;
   }
+
+  res = vqec_ifclient_bind_params_set_tr135_params(bp, &src->tr135_params);
+  if (!res) {
+    GST_ELEMENT_ERROR(GST_ELEMENT(src), STREAM, FAILED, (NULL),
+                      ("Failed to enable TR135 stats on tuner/channel"));
+    goto out;
+  }
+
   res = vqec_ifclient_chan_cfg_parse_sdp(&cfg, sdp,
                                          VQEC_CHAN_TYPE_LINEAR);
   if (!res) {
