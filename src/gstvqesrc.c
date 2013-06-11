@@ -201,7 +201,8 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_UDP_DROPS,
       g_param_spec_uint64 ("primary-udp-drops", "PROP_VQEC_PRIMARY_UDP_DROPS",
-          "primary udp mpeg pkts dropped, due to a failure to have a valid MPEG sync byte as the first byte in the pkt payload", 0, G_MAXUINT64, 0,
+          "primary udp mpeg pkts dropped, due to a failure to have a valid MPEG"
+          " sync byte as the first byte in the pkt payload", 0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTP_INPUTS,
@@ -211,12 +212,16 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTP_DROPS,
       g_param_spec_uint64 ("primary-rtp-drops", "PROP_VQEC_PRIMARY_RTP_DROPS",
-          "primary rtp pkts dropped, due to reasons such as: o RTP parse failure o too early (before join) o too late for playout o drop simulator tool This counter EXCLUDES drops due to duplicate pkts being recvd", 0, G_MAXUINT64, 0,
+          "primary rtp pkts dropped, due to reasons such as: o RTP parse"
+          " failure o too early (before join) o too late for playout o drop"
+          " simulator tool This counter EXCLUDES drops due to duplicate pkts"
+          " being recvd", 0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTP_DROPS_LATE,
       g_param_spec_uint64 ("primary-rtp-drops-late", "PROP_VQEC_PRIMARY_RTP_DROPS_LATE",
-          "primary rtp pkts dropped due to arriving too late (after time needed by output scheduler)", 0, G_MAXUINT64, 0,
+          "primary rtp pkts dropped due to arriving too late "
+          "(after time needed by output scheduler)", 0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_VQEC_PRIMARY_RTCP_INPUTS,
@@ -333,7 +338,8 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_VQEC_POST_REPAIR_LOSSES_RCC,
       g_param_spec_uint64 ("post-repair-losses-rcc", "PROP_VQEC_POST_REPAIR_LOSSES_RCC",
            "number of rcc rtp pkts which were missing (not repaired) upon output to the tuner\n"      
-           "                        I.e. any packets missing from an RCC burst and not repaired would be counted by this counter", 
+           "                        I.e. any packets missing from an RCC burst and"
+           " not repaired would be counted by this counter", 
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
@@ -362,85 +368,112 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_TR135_OVERRUNS,
       g_param_spec_uint64 ("tr135-overruns", "PROP_TR135_OVERRUNS",
-           "some tr135 nonsense",
+           "Total number of times the receive jitter buffer has overrun "
+           "for this AV stream.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_UNDERRUNS,
       g_param_spec_uint64 ("tr135-underruns", "PROP_TR135_UNDERRUNS",
-           "some tr135 nonsense", 
+           "Total number of times the receive jitter buffer has underrun"
+           " for this AV stream.", 
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_EXPECTED,
       g_param_spec_uint64 ("tr135-packets-expected", "PROP_TR135_PACKETS_EXPECTED",
-           "some tr135 nonsense", 
+           "Total number of RTP packets expected for this AV stream as "
+           "described in 13 A.3.", 
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_RECEIVED,
       g_param_spec_uint64 ("tr135-packets-received", "PROP_TR135_PACKETS_RECEIVED",
-           "some tr135 nonsense", 
+           "Total number of RTP packets received for this AV stream. These "
+           "statistics are collected when no EC is applied or after any EC if available.", 
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_LOST,
       g_param_spec_uint64 ("tr135-packets-lost", "PROP_TR135_PACKETS_LOST",
-           "some tr135 nonsense",
+           "Total number of RTP packets lost for this stream. These statistics "
+           "are collected when no EC is applied or after any EC if available.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_PACKETS_LOST_BEFORE_EC,
       g_param_spec_uint64 ("tr135-packets-lost-before-ec", "PROP_TR135_PACKETS_LOST_BEFORE_EC",
-           "some tr135 nonsense",
+           "Total number of RTP packets lost for this stream. These statistics"
+           " are collected before any EC, if available, is applied.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_LOSS_EVENTS,
       g_param_spec_uint64 ("tr135-loss-events", "PROP_TR135_LOSS_EVENTS",
-           "some tr135 nonsense",
+           "Total number of Loss Events for this stream. These statistics "
+           "are collected when no EC is applied or after any EC if available.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_LOSS_EVENTS_BEFORE_EC,
       g_param_spec_uint64 ("tr135-loss-events-before-ec", "PROP_TR135_LOSS_EVENTS_BEFORE_EC",
-           "some tr135 nonsense",
+           "Total number of Loss Events for this stream. These statistics are"
+           " collected before any EC, if available, is applied.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_SEVERE_LOSS_INDEX_COUNT,
       g_param_spec_uint64 ("tr135-severe-loss-index-count", "PROP_TR135_SEVERE_LOSS_INDEX_COUNT",
-           "some tr135 nonsense",
+           "Total number of Loss Events closer than SevereLossMinDistance."
+           " These statistics are collected when no EC is applied or after"
+           " any EC if available.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_MINIMUM_LOSS_DISTANCE,
       g_param_spec_uint64 ("tr135-minimum-loss-distance", "PROP_TR135_MINIMUM_LOSS_DISTANCE",
-           "some tr135 nonsense",
+           "WARNING: this is an usnigned int for VQEC so the description is not"
+           " true: Comma-separated list; each entry is the length in RTP "
+           "packets of the shortest distance between consecutive Loss Events"
+           " for this AV stream during the sample interval. This is not true"
+           " for VQEC where this is an unsigned int",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_MAXIMUM_LOSS_PERIOD,
       g_param_spec_uint64 ("tr135-maximum-loss-period", "PROP_TR135_MAXIMUM_LOSS_PERIOD",
-           "some tr135 nonsense",
+           "WARNING: this is an usnigned int for VQEC so the description is not"
+           " true: Comma-separated list; each entry is the length in RTP"
+           " packets of the longest Loss Event for this AV stream during the"
+           " sample interval. These statistics are collected when no EC is"
+           " applied or after any EC if available.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_BUFFER_SIZE,
       g_param_spec_uint64 ("tr135-buffer-size", "PROP_TR135_BUFFER_SIZE",
-           "some tr135 nonsense",
+           "De-jittering buffer size, measured in milliseconds, on the receiver"
+           " side of the CPE. The STB is responsible for converting this into"
+           " the actual buffer size in bytes.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_GMIN,
       g_param_spec_uint64 ("tr135-gmin", "PROP_TR135_GMIN",
-           "some tr135 nonsense",
+           "Minimum number of consecutive received packets after the end of an"
+           " RTP Loss Event. A Loss Event is defined as as a sequence of lost"
+           " packets, possibly including islands of received packets. Each"
+           " island consists of up to (Gmin - 1) received packets (a sequence"
+           " of Gmin received packets terminates the Loss Event, and so is"
+           " not an island).",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TR135_SEVERE_LOSS_MIN_DISTANCE,
       g_param_spec_uint64 ("tr135-severe-loss-min-distance", "PROP_TR135_SEVERE_LOSS_MIN_DISTANCE",
-           "some tr135 nonsense",
+           "The minimum distance required between error events before an RTP"
+           " Loss Event is considered severe. Used in the calculation of"
+           " SevereLossIndexCount and SevereLossIndexCountBeforeEC.",
            0, G_MAXUINT64, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
@@ -519,7 +552,12 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   vqesrc = GST_VQESRC_CAST (psrc);
 
-  GST_OBJECT_LOCK (vqesrc);
+  /* It is not necessary (nor desirable) to lock the vqesrc mutex here as VQE
+   * does it's own internal locking and the only vqesrc member we need to
+   * access is tuner id which is set in _start and _stop which GstBaseSrc
+   * guarantees will not be called at the same time as _create.  We don't want
+   * to hold the mutex to avoid blocking other methods (notably get_property)
+   * while waiting for data */
 
   /* TODO: deal with cancellation somehow... Probably need to return
      GST_FLOW_FLUSHING */
@@ -530,7 +568,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   buflist[0].buf_ptr = g_malloc(buffer_size);
   buflist[0].buf_len = buffer_size;
   if (!buflist[0].buf_ptr) {
-    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       FAILED, (NULL),
                       ("g_malloc(%i) failed", buffer_size));
@@ -539,7 +576,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   vqec_error_t err = vqec_ifclient_tuner_recvmsg(vqesrc->tuner, buflist, 1, &bytes_read, 1000000);
   if (err) {
-    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       READ, (NULL),
                       ("Error receiving data from VQE: %s", vqec_err2str(err)));
@@ -549,7 +585,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   outbuf = gst_buffer_new_wrapped_full(0, buflist[0].buf_ptr, buffer_size, 0,
                                        bytes_read, buflist[0].buf_ptr, g_free);
   if (!outbuf) {
-    GST_OBJECT_UNLOCK (vqesrc);
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       FAILED, (NULL),
                       ("gst_buffer_new_wrapped_full failed!"));
@@ -565,7 +600,6 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
   saddr = NULL;
 #endif
-  GST_OBJECT_UNLOCK (vqesrc);
   *buf = outbuf;
   return GST_FLOW_OK;
 buf_error:
