@@ -147,6 +147,8 @@ enum
   PROP_TR135_GMIN,
   PROP_TR135_SEVERE_LOSS_MIN_DISTANCE,
 
+  PROP_VQEC_HAS_VALID_STATS,
+
   PROP_LAST
 };
 
@@ -451,6 +453,10 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
            0, G_MAXULONG, 0,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_VQEC_HAS_VALID_STATS,
+      g_param_spec_boolean ("stats-are-valid", "stats-are-valid",
+          "Set to true if VQE can provide valid stats.", FALSE,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
@@ -652,8 +658,14 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
   GST_OBJECT_UNLOCK (vqesrc);
   
   if ( error != VQEC_OK ){
-    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), STREAM, FAILED, (NULL),
+    if ( prop_id == PROP_VQEC_HAS_VALID_STATS ) {
+      g_value_set_boolean ( value, FALSE );
+    }
+    else
+    {
+      GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), STREAM, FAILED, (NULL),
                       ("Failed to get VQE-C tuner stats"));
+    }
     return;
   } else {
     switch (prop_id) {
@@ -790,6 +802,9 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
         break;
       case PROP_TR135_SEVERE_LOSS_MIN_DISTANCE:
         g_value_set_ulong ( value, stats.tr135_severe_loss_min_distance );
+        break;
+      case PROP_VQEC_HAS_VALID_STATS:
+        g_value_set_boolean ( value, TRUE );
         break;
 
       default:
