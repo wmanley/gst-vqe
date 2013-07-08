@@ -58,6 +58,7 @@ struct _GstVQESrc {
   
   vqec_tunerid_t tuner;
   vqec_ifclient_tr135_params_t tr135_params;
+  GstBufferPool* bufferPool;
 
   /* parsed stream uri used for stats queries */
   char stream_uri[128];

@@ -90,6 +90,8 @@ GstTask *vqe_owner_task = NULL;      /* worker thread task            */
 size_t  vqe_owner_refcount = 0;      /* shared state refcout          */
 
 static const size_t buffer_size = 4096; /* 4KB */
+static const size_t max_buffers = 0;  /* have unlimited buffers*/
+static const size_t min_buffers = 1;  /* start with one buffer */
 
 enum
 {
@@ -148,6 +150,7 @@ enum
   PROP_TR135_SEVERE_LOSS_MIN_DISTANCE,
 
   PROP_VQEC_HAS_VALID_STATS,
+
 
   PROP_LAST
 };
@@ -458,6 +461,7 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
           "Set to true if VQE can provide valid stats.", FALSE,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
 
@@ -507,6 +511,8 @@ gst_vqesrc_init (GstVQESrc * vqesrc)
   vqesrc->tr135_params.gmin = 1;
   vqesrc->tr135_params.severe_loss_min_distance = 2;
   vqesrc->stream_uri[0] = '\0';
+
+  vqesrc->bufferPool = gst_buffer_pool_new();
 }
 
 static void
@@ -523,6 +529,9 @@ gst_vqesrc_finalize (GObject * object)
 
   g_free (vqesrc->cfg);
   vqesrc->cfg = NULL;
+  
+  gst_object_unref(vqesrc->bufferPool);
+  vqesrc->bufferPool = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 
@@ -534,6 +543,10 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstVQESrc *vqesrc;
   GstBuffer *outbuf;
+  GstFlowReturn ret;
+  GstBuffer *buffer;
+  GstMemory *mem;
+  GstMapInfo info;
 
   vqesrc = GST_VQESRC_CAST (psrc);
 
@@ -550,15 +563,36 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   vqec_iobuf_t buflist[1];
   memset(buflist, 0, sizeof(buflist));
 
-  buflist[0].buf_ptr = g_malloc(buffer_size);
-  buflist[0].buf_len = buffer_size;
-  if (!buflist[0].buf_ptr) {
+  ret = gst_buffer_pool_acquire_buffer (vqesrc->bufferPool, &buffer, NULL);
+  if (G_UNLIKELY (ret != GST_FLOW_OK))
+  {
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       FAILED, (NULL),
-                      ("g_malloc(%i) failed", buffer_size));
+                      ("Failed to acquire buffer from buffer pool."));
     goto error;
   }
 
+  guint memIdx = gst_buffer_n_memory( buffer );
+  if ( memIdx != 1)
+  {
+    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
+                      FAILED, (NULL),
+                      ("This is not ideal..."));
+    goto error;
+  }
+
+  mem = gst_buffer_peek_memory(buffer, memIdx-1) ;
+  if ( !gst_memory_map( mem,&info,GST_MAP_WRITE ) )
+  {
+    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
+                  FAILED, (NULL),
+                  ("gst_memory_map failed"));
+    goto error;
+  }
+
+  buflist[0].buf_ptr = info.data;
+  buflist[0].buf_len = info.maxsize;
+ 
   vqec_error_t err = vqec_ifclient_tuner_recvmsg(vqesrc->tuner, buflist, 1, &bytes_read, 1000000);
   if (err) {
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
@@ -567,14 +601,8 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     goto buf_error;
   }
 
-  outbuf = gst_buffer_new_wrapped_full(0, buflist[0].buf_ptr, buffer_size, 0,
-                                       bytes_read, buflist[0].buf_ptr, g_free);
-  if (!outbuf) {
-    GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
-                      FAILED, (NULL),
-                      ("gst_buffer_new_wrapped_full failed!"));
-    goto buf_error;
-  }
+  gst_memory_resize (mem,0,bytes_read);
+  gst_memory_unmap ( mem, &info);
 
   /* Perhaps this is also a good idea: */
 #if 0
@@ -585,12 +613,13 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
   saddr = NULL;
 #endif
-  *buf = outbuf;
+  *buf = buffer;
   return GST_FLOW_OK;
 buf_error:
-    g_free(buflist[0].buf_ptr);
+  gst_memory_unmap (mem, &info);
+  gst_buffer_pool_release_buffer (vqesrc->bufferPool, buffer);
 error:
-    return GST_FLOW_ERROR;
+  return GST_FLOW_ERROR;
 }
 
 static gboolean
@@ -636,6 +665,8 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
       vqesrc->tr135_params.severe_loss_min_distance = g_value_get_ulong (value);
       vqec_ifclient_set_tr135_params_channel(vqesrc->stream_uri, &vqesrc->tr135_params);
       break;
+        break;
+
     default:
       break;
   }
@@ -807,6 +838,7 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
         g_value_set_boolean ( value, TRUE );
         break;
 
+
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
         break;
@@ -917,9 +949,18 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   GstVQESrc *src;
   vqec_error_t err = 0;
   char tunerName[64];
+  GstAllocationParams allocParams;
 
   src = GST_VQESRC (bsrc);
 
+  GstStructure* config = gst_buffer_pool_get_config (src->bufferPool);
+  gst_buffer_pool_config_set_params ( config, 
+    gst_static_pad_template_get_caps(&src_template),  
+    buffer_size, min_buffers, max_buffers);
+  gst_allocation_params_init (&allocParams);
+  gst_buffer_pool_config_set_allocator (config,NULL, &allocParams);
+  gst_buffer_pool_set_config (src->bufferPool, config);
+  gst_buffer_pool_set_active(src->bufferPool,TRUE);
 
   /* Create unique tuner name. 
     Unique at least in this process, which is what we care about. */
