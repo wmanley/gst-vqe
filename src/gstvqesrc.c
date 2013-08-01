@@ -81,7 +81,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
  * loop worker thread. This isn't pretty, but it works. 
  * 
  * Thanks for understanding,
- * Anonymouse.
+ * Anonymous.
  */
 
 GMutex vqe_owner_mutex;              /* refcount and task access lock */
@@ -89,7 +89,9 @@ GRecMutex vqe_owner_task_mutex;      /* gstreamer task lock           */
 GstTask *vqe_owner_task = NULL;      /* worker thread task            */
 size_t  vqe_owner_refcount = 0;      /* shared state refcout          */
 
-static const size_t buffer_size = 4096; /* 4KB */
+static const size_t default_compound_buffer_size = VQEC_MSG_MAX_DATAGRAM_LEN*32; 
+static const size_t max_compound_buffer_size = 5*1024*1024;
+
 static const size_t max_buffers = 0;  /* have unlimited buffers*/
 static const size_t min_buffers = 1;  /* start with one buffer */
 
@@ -151,6 +153,7 @@ enum
 
   PROP_VQEC_HAS_VALID_STATS,
 
+  PROP_GST_BUFFERSIZE_SIZE,
 
   PROP_LAST
 };
@@ -462,6 +465,16 @@ gst_vqesrc_class_init (GstVQESrcClass * klass)
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
 
+  g_object_class_install_property (gobject_class, PROP_GST_BUFFERSIZE_SIZE,
+      g_param_spec_ulong ("buffer-size", "buffers-size_",
+           "This is the size of the buffers GstVqe will prodice rounded down "
+           "by the size of the VQEC packet size. Set on NULLl state",
+           /* Requiring double the  VQEC_MSG_MAX_DATAGRAM_LEN avoids 
+           special case handling further down in the code. */
+           VQEC_MSG_MAX_DATAGRAM_LEN * 2, max_compound_buffer_size,
+           default_compound_buffer_size, 
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
 
@@ -513,6 +526,13 @@ gst_vqesrc_init (GstVQESrc * vqesrc)
   vqesrc->stream_uri[0] = '\0';
 
   vqesrc->bufferPool = gst_buffer_pool_new();
+  
+  /* 
+   * When we compound the backets to form larger buffers we need to take
+   * into account that VQEC can only copy entire buffers, hence the buffer
+   * size requested by the user will be slightly larger to accomodate for that.
+   */
+  vqesrc->compound_buffer_size = default_compound_buffer_size;
 }
 
 static void
@@ -547,6 +567,10 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GstBuffer *buffer;
   GstMemory *mem;
   GstMapInfo info;
+  int32_t bytes_read = 0;
+  int32_t compounded_bytes_read = 0;
+  vqec_iobuf_t buflist[1] = {0};
+  vqec_error_t err=0;
 
   vqesrc = GST_VQESRC_CAST (psrc);
 
@@ -559,8 +583,7 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   /* TODO: deal with cancellation somehow... Probably need to return
      GST_FLOW_FLUSHING */
-  int32_t bytes_read = 0;
-  vqec_iobuf_t buflist[1];
+  
   memset(buflist, 0, sizeof(buflist));
 
   ret = gst_buffer_pool_acquire_buffer (vqesrc->bufferPool, &buffer, NULL);
@@ -590,10 +613,33 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     goto error;
   }
 
-  buflist[0].buf_ptr = info.data;
-  buflist[0].buf_len = info.maxsize;
- 
-  vqec_error_t err = vqec_ifclient_tuner_recvmsg(vqesrc->tuner, buflist, 1, &bytes_read, 1000000);
+  // read at buffer_size amount of data
+  while ( compounded_bytes_read
+          <= (vqesrc->compound_buffer_size - VQEC_MSG_MAX_DATAGRAM_LEN) && 
+          !err )
+  {
+    bytes_read = 0;
+    buflist[0].buf_ptr = &info.data[compounded_bytes_read];
+    buflist[0].buf_len = info.maxsize - compounded_bytes_read;
+
+  /* VQEC_MSG_MAX_RECV_TIMEOUT this is 100ms for the current version of VQEC */
+    err = vqec_ifclient_tuner_recvmsg(
+        vqesrc->tuner, buflist, 1, &bytes_read, VQEC_MSG_MAX_RECV_TIMEOUT );
+
+    if ( err ==VQEC_OK && bytes_read==0 )
+    {
+      /* We're spinning for 100ms without data arriving. We need to exit this
+         function to allow pipeline to shutdown properly if data will never
+         come. Without this exit condition we're hitting a deadlock when
+         GstBaseSrc wants to change it's state but can't because we're
+         spinning in here. 
+      */
+      break;
+    }
+
+    compounded_bytes_read+=bytes_read;
+  }
+
   if (err) {
     GST_ELEMENT_ERROR(GST_ELEMENT(vqesrc), RESOURCE,
                       READ, (NULL),
@@ -601,7 +647,7 @@ gst_vqesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     goto buf_error;
   }
 
-  gst_memory_resize (mem,0,bytes_read);
+  gst_memory_resize (mem,0,compounded_bytes_read);
   gst_memory_unmap ( mem, &info);
 
   /* Perhaps this is also a good idea: */
@@ -665,6 +711,8 @@ gst_vqesrc_set_property (GObject * object, guint prop_id, const GValue * value,
       vqesrc->tr135_params.severe_loss_min_distance = g_value_get_ulong (value);
       vqec_ifclient_set_tr135_params_channel(vqesrc->stream_uri, &vqesrc->tr135_params);
       break;
+    case PROP_GST_BUFFERSIZE_SIZE:
+        vqesrc->compound_buffer_size  = g_value_get_ulong ( value );
         break;
 
     default:
@@ -838,6 +886,9 @@ gst_vqesrc_get_property (GObject * object, guint prop_id, GValue * value,
         g_value_set_boolean ( value, TRUE );
         break;
 
+    case PROP_GST_BUFFERSIZE_SIZE:
+        g_value_set_ulong ( value, vqesrc->compound_buffer_size );
+        break;
 
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -956,7 +1007,7 @@ gst_vqesrc_start (GstBaseSrc * bsrc)
   GstStructure* config = gst_buffer_pool_get_config (src->bufferPool);
   gst_buffer_pool_config_set_params ( config, 
     gst_static_pad_template_get_caps(&src_template),  
-    buffer_size, min_buffers, max_buffers);
+    src->compound_buffer_size, min_buffers, max_buffers);
   gst_allocation_params_init (&allocParams);
   gst_buffer_pool_config_set_allocator (config,NULL, &allocParams);
   gst_buffer_pool_set_config (src->bufferPool, config);
